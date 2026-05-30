@@ -1,5 +1,5 @@
 /**
- * Backend URL from admin-dash/.env.local → NEXT_PUBLIC_API_URL
+ * API base = Django backend from admin-dash/.env.local → NEXT_PUBLIC_API_URL
  * Host only, no /api suffix (e.g. https://toyota-assessment.onrender.com)
  */
 
@@ -10,15 +10,10 @@ export function normalizeBackendUrl(url: string): string {
   return url.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
 }
 
-/** Backend host from .env.local; on Vercel use same-origin /api proxy (vercel.json). */
+/** Always use NEXT_PUBLIC_API_URL (inlined at build time on Vercel). */
 export function resolveBackendUrl(): string {
-  if (typeof window !== "undefined" && window.location.hostname.endsWith(".vercel.app")) {
-    return "";
-  }
-
   const fromEnv = process.env.NEXT_PUBLIC_API_URL?.trim();
   if (fromEnv) return normalizeBackendUrl(fromEnv);
-
   return "http://localhost:8000";
 }
 
@@ -28,8 +23,8 @@ export const BACKEND_URL = resolveBackendUrl();
 export const API_BASE_URL = BACKEND_URL;
 
 /**
- * Full URL for a Django API route.
- * @param path Route after /api, e.g. "auth/login/" or "/payroll/import/"
+ * Full URL: {BACKEND_URL}/api/{path}
+ * e.g. apiUrl("payroll/process-period/") → https://toyota-assessment.onrender.com/api/payroll/process-period/
  */
 export function apiUrl(path: string): string {
   const base = BACKEND_URL.replace(/\/$/, "");
@@ -40,5 +35,5 @@ export function apiUrl(path: string): string {
   if (!route.startsWith(`${API_PATH_PREFIX}/`)) {
     route = `${API_PATH_PREFIX}${route}`;
   }
-  return base ? `${base}${route}` : route;
+  return `${base}${route}`;
 }
