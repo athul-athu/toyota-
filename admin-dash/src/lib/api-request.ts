@@ -4,6 +4,11 @@ import {
   ensureSessionForApi,
   refreshSession,
 } from "./auth";
+import {
+  isPayrollEmailApiPath,
+  looksLikeSmtpError,
+  smtpErrorMessage,
+} from "./smtp-errors";
 
 type ApiFetchOptions = RequestInit & {
   auth?: boolean;
@@ -32,7 +37,14 @@ export function apiErrorFromResponse(
   if (res.status === 401) {
     return String(data.error ?? "Session expired. Please sign in again.");
   }
-  return String(data.error ?? fallback);
+  const msg = String(data.error ?? fallback);
+  if (looksLikeSmtpError(msg)) {
+    return smtpErrorMessage(msg);
+  }
+  if (res.status >= 500 && isPayrollEmailApiPath(res.url)) {
+    return smtpErrorMessage(msg);
+  }
+  return msg;
 }
 
 /**
@@ -87,10 +99,14 @@ export async function apiFetch(
         await new Promise((r) => setTimeout(r, 2000));
         continue;
       }
+      if (isPayrollEmailApiPath(path)) {
+        throw new Error(smtpErrorMessage(), { cause: err });
+      }
       throw new Error(
         `Cannot reach API (upstream ${UPSTREAM_URL}). ` +
           `If Render was sleeping, wait ~30s and refresh. ` +
-          `Check https://toyota-assessment.onrender.com/api/health/ in your browser.`,
+          `If this happened while sending emails, it is usually an SMTP error on Render—` +
+          `check SMTP_* environment variables, not CORS.`,
         { cause: err },
       );
     }

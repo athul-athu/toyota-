@@ -13,3 +13,6 @@ services:
         value: ${DJANGO_SECRET_KEY}
       - key: DATABASE_URL
         value: ${DATABASE_URL}
+      # Add in Render dashboard (Dashboard → Environment):
+      # SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_JWT_SECRET
+      # SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM

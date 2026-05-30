@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import socket
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
@@ -31,6 +32,54 @@ def smtp_configured() -> bool:
         and settings.EMAIL_HOST_PASSWORD
         and settings.DEFAULT_FROM_EMAIL
     )
+
+
+def format_smtp_error(exc: BaseException) -> str:
+    """Turn low-level socket/SMTP errors into actionable messages for the admin UI."""
+    text = str(exc).strip() or exc.__class__.__name__
+    lower = text.lower()
+
+    if not smtp_configured():
+        return (
+            "SMTP is not configured on the server. "
+            "Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD, and SMTP_FROM in Render "
+            "environment variables (not only your local .env)."
+        )
+
+    if (
+        "network is unreachable" in lower
+        or "errno 101" in lower
+        or "no route to host" in lower
+        or "errno 113" in lower
+        or "name or service not known" in lower
+        or "errno -2" in lower
+        or "getaddrinfo failed" in lower
+    ):
+        return (
+            f"Cannot reach SMTP server ({settings.EMAIL_HOST}:{settings.EMAIL_PORT}). "
+            "Check SMTP_HOST/SMTP_PORT on Render. Many hosts block outbound port 587; "
+            "try SendGrid/Mailgun or your provider's SMTP relay."
+        )
+
+    if "timed out" in lower or "timeout" in lower:
+        return (
+            f"SMTP connection timed out ({settings.EMAIL_HOST}). "
+            "Check SMTP_* on Render, firewall rules, and SMTP_TIMEOUT."
+        )
+
+    if "authentication failed" in lower or "535" in lower or "534" in lower:
+        return (
+            "SMTP login failed. Use an app password for Gmail and verify "
+            "SMTP_USER / SMTP_PASSWORD on Render."
+        )
+
+    if "connection refused" in lower or "errno 111" in lower:
+        return (
+            f"SMTP server refused connection ({settings.EMAIL_HOST}:{settings.EMAIL_PORT}). "
+            "Check SMTP_PORT and SMTP_USE_TLS / SMTP_USE_SSL."
+        )
+
+    return f"SMTP error: {text}"
 
 
 def period_label(month: int, year: int) -> str:
@@ -104,9 +153,7 @@ def send_salary_slip_email(
     attachment_filename: str,
 ) -> None:
     if not smtp_configured():
-        raise RuntimeError(
-            "SMTP is not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD, and SMTP_FROM in the repo root .env"
-        )
+        raise RuntimeError(format_smtp_error(RuntimeError("not configured")))
 
     period = period_label(month, year)
     subject = f"Your Salary Slip – {period} | Toyota"
@@ -121,5 +168,14 @@ def send_salary_slip_email(
     )
     msg.attach_alternative(html, "text/html")
     msg.attach(attachment_filename, pdf_bytes, "application/pdf")
-    msg.send(fail_silently=False)
+
+    try:
+        msg.send(fail_silently=False)
+    except (TimeoutError, socket.timeout) as exc:
+        raise RuntimeError(format_smtp_error(exc)) from exc
+    except OSError as exc:
+        raise RuntimeError(format_smtp_error(exc)) from exc
+    except Exception as exc:
+        raise RuntimeError(format_smtp_error(exc)) from exc
+
     logger.info("Salary slip email sent to %s (%s)", to_email, employee_name)

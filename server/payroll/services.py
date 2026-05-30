@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
-from payroll.email_service import send_salary_slip_email, smtp_configured
+from payroll.email_service import format_smtp_error, send_salary_slip_email, smtp_configured
 from payroll.models import Employee, SalaryRecord
 from payroll.parsers import parse_payroll_file
 from payroll.pdf_generator import generate_salary_slip_pdf
@@ -147,10 +147,11 @@ def send_period_emails(
 
     if not smtp_configured():
         return {
-            "error": "SMTP not configured. Add SMTP_* variables to the repo root .env",
+            "error": format_smtp_error(RuntimeError("not configured")),
             "month": month,
             "year": year,
             "done": True,
+            "smtp_configured": False,
         }
 
     batch_size = limit or getattr(settings, "PAYROLL_EMAIL_BATCH_SIZE", 3)
@@ -214,14 +215,14 @@ def send_period_emails(
                 {
                     "employee_id": employee.employee_id,
                     "email": employee.email,
-                    "error": str(exc),
+                    "error": format_smtp_error(exc),
                 }
             )
 
     next_offset = offset + len(batch)
     done = next_offset >= total
 
-    return {
+    result = {
         "month": month,
         "year": year,
         "emails_sent": emails_sent,
@@ -230,7 +231,11 @@ def send_period_emails(
         "next_offset": next_offset if not done else None,
         "total_employees": total,
         "done": done,
+        "smtp_configured": True,
     }
+    if email_errors and not emails_sent and offset == 0:
+        result["error"] = email_errors[0]["error"]
+    return result
 
 
 def process_period(

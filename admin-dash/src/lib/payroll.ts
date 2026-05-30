@@ -1,5 +1,6 @@
 import { apiErrorFromResponse, apiFetch, apiFetchJson } from "./api-request";
 import { ensureSessionForApi, refreshSession } from "./auth";
+import { looksLikeSmtpError, smtpErrorMessage } from "./smtp-errors";
 
 export type PayrollRow = {
   employee_id: string;
@@ -122,6 +123,11 @@ export async function sendPeriodEmailsBatch(
   if (!res.ok) {
     throw new Error(apiErrorFromResponse(res, data, "Email send failed"));
   }
+  if (data.error && typeof data.error === "string") {
+    throw new Error(
+      looksLikeSmtpError(data.error) ? smtpErrorMessage(data.error) : data.error,
+    );
+  }
   return data;
 }
 
@@ -145,6 +151,12 @@ export async function processPeriod(
     const batch = await sendPeriodEmailsBatch(month, year, offset);
     emails_sent.push(...(batch.emails_sent ?? []));
     email_errors.push(...(batch.email_errors ?? []));
+    if (batch.email_errors?.length && !batch.emails_sent?.length) {
+      const first = batch.email_errors[0]?.error;
+      if (first && looksLikeSmtpError(first)) {
+        throw new Error(smtpErrorMessage(first));
+      }
+    }
     done = batch.done;
     offset = batch.next_offset ?? offset + 1;
   }

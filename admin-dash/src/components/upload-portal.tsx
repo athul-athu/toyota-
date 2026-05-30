@@ -70,8 +70,15 @@ export function UploadPortal() {
       }
       if (!result.smtp_configured) {
         setError(
-          "SMTP is not configured on the server. PDFs were generated but emails were not sent. Add SMTP_* to the repo root .env",
+          "SMTP is not configured on Render. PDFs were saved but emails were not sent. " +
+            "Add SMTP_HOST, SMTP_USER, SMTP_PASSWORD, SMTP_FROM in Render → Environment.",
         );
+      }
+      const emailFails = result.period_results?.flatMap(
+        (p) => p.email_errors ?? [],
+      );
+      if (emailFails.length && result.total_emails_sent === 0) {
+        setError(emailFails[0]?.error ?? "All emails failed (check SMTP on Render).");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Processing failed");
