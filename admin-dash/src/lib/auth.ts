@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "./api";
+import { apiUrl } from "./api";
 
 const ACCESS_TOKEN_KEY = "access_token";
 const REFRESH_TOKEN_KEY = "refresh_token";
@@ -46,7 +46,7 @@ export async function signup(
   password: string,
   fullName?: string,
 ): Promise<SignupResponse> {
-  const res = await fetch(`${API_BASE_URL}/api/auth/signup/`, {
+  const res = await fetch(apiUrl("auth/signup/"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -72,7 +72,7 @@ export async function login(
   email: string,
   password: string,
 ): Promise<LoginResponse> {
-  const res = await fetch(`${API_BASE_URL}/api/auth/login/`, {
+  const res = await fetch(apiUrl("auth/login/"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -91,7 +91,7 @@ export async function fetchMe(): Promise<AuthUser | null> {
   const token = getAccessToken();
   if (!token) return null;
 
-  const res = await fetch(`${API_BASE_URL}/api/auth/me/`, {
+  const res = await fetch(apiUrl("auth/me/"), {
     headers: { Authorization: `Bearer ${token}` },
   });
 
@@ -112,7 +112,7 @@ export async function logout(): Promise<void> {
   const token = getAccessToken();
   if (token) {
     try {
-      await fetch(`${API_BASE_URL}/api/auth/logout/`, {
+      await fetch(apiUrl("auth/logout/"), {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });

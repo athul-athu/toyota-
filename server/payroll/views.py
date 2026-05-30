@@ -14,7 +14,12 @@ from payroll.email_service import smtp_configured
 from payroll.models import Employee, SalaryRecord
 from payroll.parsers import parse_payroll_file
 from payroll.pdf_generator import generate_salary_slip_pdf
-from payroll.services import import_payroll_rows, run_full_pipeline, run_pipeline_from_file
+from payroll.services import (
+    import_payroll_rows,
+    process_period,
+    run_full_pipeline,
+    run_pipeline_from_file,
+)
 from payroll.supabase_storage import (
     list_slip_files,
     upload_salary_slip_pdf,
@@ -208,6 +213,32 @@ def generate_pdfs(request):
             "message": "PDFs saved to Supabase Storage. Each file is named by Employee ID and name.",
         }
     )
+
+
+@csrf_exempt
+@require_auth
+@require_http_methods(["POST"])
+def process_period_api(request):
+    """Generate PDFs, upload, and email for one month/year (avoids long single request timeouts)."""
+    try:
+        body = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    month = body.get("month")
+    year = body.get("year")
+    if month is None or year is None:
+        return JsonResponse({"error": "month and year are required"}, status=400)
+
+    send_emails = body.get("send_emails", True)
+    result = process_period(int(month), int(year), send_emails=send_emails)
+    result["month"] = int(month)
+    result["year"] = int(year)
+
+    result["smtp_configured"] = smtp_configured()
+    if result.get("error"):
+        return JsonResponse(result, status=400)
+    return JsonResponse(result)
 
 
 @csrf_exempt

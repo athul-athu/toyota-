@@ -2,7 +2,7 @@
 .env
 .env.local
 .env.*.local
-admin-dash/.env.local
+!admin-dash/.env.local
 server/.env
 *.pem
 *.key

@@ -32,10 +32,12 @@ if not exist ".env" (
 )
 
 if not exist "admin-dash\.env.local" (
-  echo Creating admin-dash\.env.local ...
+  echo Creating admin-dash\.env.local for local Django ...
   (
     echo NEXT_PUBLIC_API_URL=http://localhost:8000
   ) > "admin-dash\.env.local"
+) else (
+  echo Using existing admin-dash\.env.local
 )
 
 echo [1/4] Python virtual environment...

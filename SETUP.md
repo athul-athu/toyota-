@@ -94,9 +94,11 @@ SMTP_PASSWORD=abcdefghijklmnop
 SMTP_FROM=Toyota Payroll <you@gmail.com>
 ```
 
-### 3.3 Admin dashboard env (optional)
+### 3.3 Admin dashboard env
 
-Create **`admin-dash/.env.local`**:
+The repo includes **`admin-dash/.env.local`** with `NEXT_PUBLIC_API_URL` (backend host only, no `/api`).
+
+For **local** dev against `localhost:8000`, change it to:
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8000

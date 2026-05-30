@@ -1,31 +1,39 @@
-/** Django API on Render (production). */
-export const PRODUCTION_API_URL = "https://toyota-assessment.onrender.com";
-
 /**
- * Normalize API base URL (no trailing slash, no trailing /api).
- * Wrong: https://example.onrender.com/api → https://example.onrender.com
+ * Backend URL from admin-dash/.env.local → NEXT_PUBLIC_API_URL
+ * Host only, no /api suffix (e.g. https://toyota-assessment.onrender.com)
  */
-export function normalizeApiBaseUrl(url: string): string {
+
+/** Django mounts routes under this prefix (see server/urls.py). */
+export const API_PATH_PREFIX = "/api";
+
+export function normalizeBackendUrl(url: string): string {
   return url.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
 }
 
-/**
- * Django API base URL.
- * - Local: http://localhost:8000 or NEXT_PUBLIC_API_URL
- * - Vercel: NEXT_PUBLIC_API_URL or PRODUCTION_API_URL (CORS allowed on Django)
- */
-export function resolveApiBaseUrl(): string {
+/** Reads NEXT_PUBLIC_API_URL from .env.local (or Vercel env at build time). */
+export function resolveBackendUrl(): string {
   const fromEnv = process.env.NEXT_PUBLIC_API_URL?.trim();
-  if (fromEnv) return normalizeApiBaseUrl(fromEnv);
-
-  if (typeof window !== "undefined") {
-    const host = window.location.hostname;
-    if (host.endsWith(".vercel.app")) {
-      return PRODUCTION_API_URL;
-    }
-  }
-
+  if (fromEnv) return normalizeBackendUrl(fromEnv);
   return "http://localhost:8000";
 }
 
-export const API_BASE_URL = resolveApiBaseUrl();
+export const BACKEND_URL = resolveBackendUrl();
+
+/** @deprecated Use BACKEND_URL */
+export const API_BASE_URL = BACKEND_URL;
+
+/**
+ * Full URL for a Django API route.
+ * @param path Route after /api, e.g. "auth/login/" or "/payroll/import/"
+ */
+export function apiUrl(path: string): string {
+  const base = BACKEND_URL.replace(/\/$/, "");
+  let route = path.trim();
+  if (!route.startsWith("/")) {
+    route = `/${route}`;
+  }
+  if (!route.startsWith(`${API_PATH_PREFIX}/`)) {
+    route = `${API_PATH_PREFIX}${route}`;
+  }
+  return base ? `${base}${route}` : route;
+}

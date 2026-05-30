@@ -19,4 +19,9 @@ urlpatterns = [
         payroll_views.process_and_send,
         name="payroll-process-send",
     ),
+    path(
+        "payroll/process-period/",
+        payroll_views.process_period_api,
+        name="payroll-process-period",
+    ),
 ]
