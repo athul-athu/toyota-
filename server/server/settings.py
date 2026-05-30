@@ -62,9 +62,9 @@ CORS_ALLOWED_ORIGINS = [
     if o.strip()
 ]
 
-# Vercel preview deployments (e.g. toyota-xxx.vercel.app)
+# All Vercel deployments (production + preview URLs)
 CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://[a-z0-9-]+\.vercel\.app$",
+    r"^https://.*\.vercel\.app$",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -104,6 +104,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'server.middleware.cors_fallback.EnsureCorsHeadersMiddleware',
 ]
 
 ROOT_URLCONF = 'server.urls'

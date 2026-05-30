@@ -214,6 +214,37 @@ def login(request):
 
 @csrf_exempt
 @require_http_methods(["GET"])
+def session_check(request):
+    """Verify Bearer token with Supabase (for debugging)."""
+    token = bearer_token(request)
+    if not token:
+        return JsonResponse({"ok": False, "error": "No Authorization header"}, status=401)
+
+    clients = get_supabase_clients()
+    try:
+        user_res = clients.public.auth.get_user(jwt=token)
+    except Exception as exc:
+        return JsonResponse(
+            {"ok": False, "error": "Supabase rejected token", "detail": str(exc)},
+            status=401,
+        )
+
+    user = user_res.user if user_res else None
+    if not user:
+        return JsonResponse({"ok": False, "error": "No user for token"}, status=401)
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "user_id": user.id,
+            "email": user.email,
+            "supabase_configured": bool(clients.public),
+        }
+    )
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
 def me(request):
     token = bearer_token(request)
     if not token:
@@ -223,10 +254,11 @@ def me(request):
 
     try:
         user_res = clients.public.auth.get_user(jwt=token)
-    except Exception:
+    except Exception as exc:
+        logger.warning("auth/me get_user failed: %s", exc)
         return JsonResponse({"error": "Invalid or expired session"}, status=401)
 
-    user = user_res.user
+    user = user_res.user if user_res else None
     if not user:
         return JsonResponse({"error": "Invalid or expired session"}, status=401)
 

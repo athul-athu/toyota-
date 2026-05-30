@@ -10,10 +10,15 @@ export function normalizeBackendUrl(url: string): string {
   return url.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
 }
 
-/** NEXT_PUBLIC_API_URL from .env.local (inlined at build time on Vercel). */
+/** Backend host from .env.local; on Vercel use same-origin /api proxy (vercel.json). */
 export function resolveBackendUrl(): string {
+  if (typeof window !== "undefined" && window.location.hostname.endsWith(".vercel.app")) {
+    return "";
+  }
+
   const fromEnv = process.env.NEXT_PUBLIC_API_URL?.trim();
   if (fromEnv) return normalizeBackendUrl(fromEnv);
+
   return "http://localhost:8000";
 }
 
@@ -35,5 +40,5 @@ export function apiUrl(path: string): string {
   if (!route.startsWith(`${API_PATH_PREFIX}/`)) {
     route = `${API_PATH_PREFIX}${route}`;
   }
-  return `${base}${route}`;
+  return base ? `${base}${route}` : route;
 }

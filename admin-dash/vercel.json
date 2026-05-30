@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://toyota-assessment.onrender.com/api/$1"
+    }
+  ]
+}

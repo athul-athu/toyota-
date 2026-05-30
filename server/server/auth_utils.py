@@ -31,10 +31,16 @@ def require_auth(view_func):
         try:
             user_res = get_supabase_clients().public.auth.get_user(jwt=token)
         except Exception as exc:
-            logger.warning("Auth failed: %s", exc)
-            return JsonResponse({"error": "Invalid or expired session"}, status=401)
+            logger.warning("Supabase auth.get_user failed: %s", exc)
+            return JsonResponse(
+                {
+                    "error": "Invalid or expired session",
+                    "detail": "Supabase could not validate your token. Sign in again.",
+                },
+                status=401,
+            )
 
-        if not user_res.user:
+        if not user_res or not user_res.user:
             return JsonResponse({"error": "Invalid or expired session"}, status=401)
 
         request.auth_user = user_res.user
