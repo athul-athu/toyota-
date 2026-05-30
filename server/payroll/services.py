@@ -7,7 +7,13 @@ from payroll.email_service import send_salary_slip_email, smtp_configured
 from payroll.models import Employee, SalaryRecord
 from payroll.parsers import parse_payroll_file
 from payroll.pdf_generator import generate_salary_slip_pdf
-from payroll.supabase_storage import build_file_name, upload_salary_slip_pdf
+from payroll.supabase_storage import (
+    build_file_name,
+    upload_salary_slip_pdf,
+    get_supabase_clients,
+    make_in_memory_salary_record,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -15,34 +21,48 @@ logger = logging.getLogger(__name__)
 def import_payroll_rows(rows: list[dict]) -> dict:
     saved = 0
     errors: list[str] = []
+    clients = get_supabase_clients()
 
     for row in rows:
         try:
             emp_id = row["employee_id"]
-            Employee.objects.update_or_create(
-                employee_id=emp_id,
-                defaults={
+            # 1) Upsert employee profile in Supabase
+            clients.service.table("employees").upsert(
+                {
+                    "employee_id": emp_id,
                     "name": row["name"],
                     "email": row["email"],
                     "designation": row.get("designation", ""),
+                }
+            ).execute()
+
+            # 2) Calculate net salary and upsert salary record in Supabase
+            base = Decimal(str(row["base_salary"]))
+            hra = Decimal(str(row["hra"]))
+            allowances = Decimal(str(row["allowances"]))
+            deductions = Decimal(str(row["deductions"]))
+            net_salary = base + hra + allowances - deductions
+
+            clients.service.table("salary_records").upsert(
+                {
+                    "employee_id": emp_id,
+                    "month": int(row["month"]),
+                    "year": int(row["year"]),
+                    "base_salary": float(base),
+                    "hra": float(hra),
+                    "allowances": float(allowances),
+                    "deductions": float(deductions),
+                    "net_salary": float(net_salary),
                 },
-            )
-            SalaryRecord.objects.update_or_create(
-                employee_id=emp_id,
-                month=int(row["month"]),
-                year=int(row["year"]),
-                defaults={
-                    "base_salary": Decimal(str(row["base_salary"])),
-                    "hra": Decimal(str(row["hra"])),
-                    "allowances": Decimal(str(row["allowances"])),
-                    "deductions": Decimal(str(row["deductions"])),
-                },
-            )
+                on_conflict="employee_id,month,year",
+            ).execute()
+
             saved += 1
         except Exception as exc:
             errors.append(f"{row.get('employee_id', '?')}: {exc}")
 
     return {"saved": saved, "errors": errors}
+
 
 
 def _periods_from_rows(rows: list[dict]) -> list[tuple[int, int]]:
@@ -63,15 +83,18 @@ def process_period(
             "year": year,
         }
 
-    salaries = SalaryRecord.objects.select_related("employee").filter(
-        month=month, year=year
-    )
-    if not salaries.exists():
+    clients = get_supabase_clients()
+    res = clients.service.table("salary_records").select("*, employees(*)").eq("month", month).eq("year", year).execute()
+    records = res.data or []
+    if not records:
         return {
             "error": f"No salary records for {month}/{year}",
             "month": month,
             "year": year,
         }
+
+    salaries = [make_in_memory_salary_record(r) for r in records]
+
 
     uploaded: list[dict] = []
     upload_errors: list[str] = []
@@ -140,7 +163,7 @@ def process_period(
     return {
         "month": month,
         "year": year,
-        "pdfs_generated": salaries.count(),
+        "pdfs_generated": len(salaries),
         "uploaded": uploaded,
         "upload_errors": upload_errors,
         "emails_sent": emails_sent,

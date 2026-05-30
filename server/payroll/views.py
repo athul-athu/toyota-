@@ -15,7 +15,13 @@ from payroll.models import Employee, SalaryRecord
 from payroll.parsers import parse_payroll_file
 from payroll.pdf_generator import generate_salary_slip_pdf
 from payroll.services import import_payroll_rows, run_full_pipeline, run_pipeline_from_file
-from payroll.supabase_storage import list_slip_files, upload_salary_slip_pdf
+from payroll.supabase_storage import (
+    list_slip_files,
+    upload_salary_slip_pdf,
+    get_supabase_clients,
+    make_in_memory_salary_record,
+)
+
 from server.auth_utils import require_auth
 
 logger = logging.getLogger(__name__)
@@ -58,17 +64,20 @@ def import_payroll(request):
 @require_auth
 @require_http_methods(["GET"])
 def list_employees(request):
-    employees = Employee.objects.all()
+    clients = get_supabase_clients()
+    res = clients.service.table("employees").select("*").order("employee_id").execute()
+    employees = res.data or []
     data = [
         {
-            "employee_id": e.employee_id,
-            "name": e.name,
-            "email": e.email,
-            "designation": e.designation,
+            "employee_id": e["employee_id"],
+            "name": e["name"],
+            "email": e["email"],
+            "designation": e.get("designation") or "",
         }
         for e in employees
     ]
     return JsonResponse({"employees": data, "count": len(data)})
+
 
 
 @csrf_exempt
@@ -77,29 +86,33 @@ def list_employees(request):
 def list_salaries(request):
     month = request.GET.get("month")
     year = request.GET.get("year")
-    qs = SalaryRecord.objects.select_related("employee").all()
+    clients = get_supabase_clients()
+    query = clients.service.table("salary_records").select("*, employees(*)")
     if month:
-        qs = qs.filter(month=int(month))
+        query = query.eq("month", int(month))
     if year:
-        qs = qs.filter(year=int(year))
+        query = query.eq("year", int(year))
+    res = query.execute()
+    records = res.data or []
 
-    data = [
-        {
-            "employee_id": s.employee_id,
-            "name": s.employee.name,
-            "email": s.employee.email,
-            "designation": s.employee.designation,
-            "base_salary": float(s.base_salary),
-            "hra": float(s.hra),
-            "allowances": float(s.allowances),
-            "deductions": float(s.deductions),
-            "net_salary": float(s.net_salary),
-            "month": s.month,
-            "year": s.year,
-        }
-        for s in qs
-    ]
+    data = []
+    for r in records:
+        emp = r.get("employees") or {}
+        data.append({
+            "employee_id": r["employee_id"],
+            "name": emp.get("name", "Unknown"),
+            "email": emp.get("email", ""),
+            "designation": emp.get("designation", ""),
+            "base_salary": float(r["base_salary"]),
+            "hra": float(r["hra"]),
+            "allowances": float(r["allowances"]),
+            "deductions": float(r["deductions"]),
+            "net_salary": float(r["net_salary"]),
+            "month": r["month"],
+            "year": r["year"],
+        })
     return JsonResponse({"salaries": data, "count": len(data)})
+
 
 
 @csrf_exempt
@@ -139,11 +152,14 @@ def generate_pdfs(request):
     month_int = int(month)
     year_int = int(year)
 
-    salaries = SalaryRecord.objects.select_related("employee").filter(
-        month=month_int, year=year_int
-    )
-    if not salaries.exists():
+    clients = get_supabase_clients()
+    res = clients.service.table("salary_records").select("*, employees(*)").eq("month", month_int).eq("year", year_int).execute()
+    records = res.data or []
+    if not records:
         return JsonResponse({"error": "No salary records for that period"}, status=404)
+
+    salaries = [make_in_memory_salary_record(r) for r in records]
+
 
     uploaded: list[dict] = []
     upload_errors: list[str] = []

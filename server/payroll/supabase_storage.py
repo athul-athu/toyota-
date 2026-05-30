@@ -3,11 +3,33 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from decimal import Decimal
 from django.conf import settings
-
+from payroll.models import Employee, SalaryRecord
 from server.supabase_client import get_supabase_clients
 
 BUCKET = getattr(settings, "SUPABASE_SALARY_BUCKET", "salary-slips")
+
+def make_in_memory_salary_record(record_dict: dict) -> SalaryRecord:
+    emp_data = record_dict.get("employees") or {}
+    employee = Employee(
+        employee_id=record_dict["employee_id"],
+        name=emp_data.get("name", "Unknown"),
+        email=emp_data.get("email", ""),
+        designation=emp_data.get("designation", ""),
+    )
+    salary = SalaryRecord(
+        employee=employee,
+        month=record_dict["month"],
+        year=record_dict["year"],
+        base_salary=Decimal(str(record_dict["base_salary"])),
+        hra=Decimal(str(record_dict["hra"])),
+        allowances=Decimal(str(record_dict["allowances"])),
+        deductions=Decimal(str(record_dict["deductions"])),
+    )
+    salary.net_salary = Decimal(str(record_dict["net_salary"]))
+    return salary
+
 
 
 def _slugify(text: str) -> str:
