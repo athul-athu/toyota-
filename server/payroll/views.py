@@ -232,14 +232,21 @@ def process_period_api(request):
     if month is None or year is None:
         return JsonResponse({"error": "month and year are required"}, status=400)
 
-    result = generate_and_upload_period(int(month), int(year))
-    result["month"] = int(month)
-    result["year"] = int(year)
-    result["smtp_configured"] = smtp_configured()
+    try:
+        result = generate_and_upload_period(int(month), int(year))
+        result["month"] = int(month)
+        result["year"] = int(year)
+        result["smtp_configured"] = smtp_configured()
 
-    if result.get("error"):
-        return JsonResponse(result, status=400)
-    return JsonResponse(result)
+        if result.get("error"):
+            return JsonResponse(result, status=400)
+        return JsonResponse(result)
+    except Exception as exc:
+        logger.exception("process_period_api failed: %s", exc)
+        return JsonResponse(
+            {"error": str(exc), "month": int(month), "year": int(year)},
+            status=500,
+        )
 
 
 @csrf_exempt
@@ -261,14 +268,27 @@ def send_period_emails_api(request):
     limit = body.get("limit")
     limit_int = int(limit) if limit is not None else None
 
-    result = send_period_emails(
-        int(month), int(year), offset=offset, limit=limit_int
-    )
-    result["smtp_configured"] = smtp_configured()
+    try:
+        result = send_period_emails(
+            int(month), int(year), offset=offset, limit=limit_int
+        )
+        result["smtp_configured"] = smtp_configured()
 
-    if result.get("error") and result.get("done"):
-        return JsonResponse(result, status=400)
-    return JsonResponse(result)
+        if result.get("error") and result.get("done"):
+            return JsonResponse(result, status=400)
+        return JsonResponse(result)
+    except Exception as exc:
+        logger.exception("send_period_emails_api failed: %s", exc)
+        return JsonResponse(
+            {
+                "error": str(exc),
+                "month": int(month),
+                "year": int(year),
+                "done": False,
+                "next_offset": offset,
+            },
+            status=500,
+        )
 
 
 @csrf_exempt

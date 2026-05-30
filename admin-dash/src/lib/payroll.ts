@@ -1,4 +1,4 @@
-import { apiFetch } from "./api-request";
+import { apiErrorFromResponse, apiFetch, apiFetchJson } from "./api-request";
 import { ensureSessionForApi, refreshSession } from "./auth";
 
 export type PayrollRow = {
@@ -44,29 +44,21 @@ export type PeriodProcessResult = {
   error?: string;
 };
 
-function apiErrorMessage(
-  res: Response,
-  data: { error?: string } | null,
-  fallback: string,
-): string {
-  if (res.status === 401) {
-    return "Session expired or not signed in. Please log in again.";
-  }
-  return data?.error ?? fallback;
-}
-
 export async function previewPayrollFile(file: File) {
   const form = new FormData();
   form.append("file", file);
 
-  const res = await apiFetch("payroll/preview/", {
+  const { res, data } = await apiFetchJson<{
+    rows: PayrollRow[];
+    errors: string[];
+    count: number;
+    error?: string;
+  }>("payroll/preview/", {
     method: "POST",
     body: form,
   });
-
-  const data = await res.json();
-  if (!res.ok) throw new Error(apiErrorMessage(res, data, "Preview failed"));
-  return data as { rows: PayrollRow[]; errors: string[]; count: number };
+  if (!res.ok) throw new Error(apiErrorFromResponse(res, data, "Preview failed"));
+  return data;
 }
 
 function uniquePeriods(rows: PayrollRow[]): { month: number; year: number }[] {
@@ -87,15 +79,16 @@ export async function processPeriodDocuments(
   month: number,
   year: number,
 ): Promise<PeriodProcessResult> {
-  const res = await apiFetch("payroll/process-period/", {
-    method: "POST",
-    json: true,
-    body: JSON.stringify({ month, year }),
-  });
-
-  const data = await res.json();
+  const { res, data } = await apiFetchJson<PeriodProcessResult & { error?: string }>(
+    "payroll/process-period/",
+    {
+      method: "POST",
+      json: true,
+      body: JSON.stringify({ month, year }),
+    },
+  );
   if (!res.ok) {
-    throw new Error(apiErrorMessage(res, data, "PDF generation failed"));
+    throw new Error(apiErrorFromResponse(res, data, "PDF generation failed"));
   }
   return data as PeriodProcessResult;
 }
@@ -112,23 +105,24 @@ export async function sendPeriodEmailsBatch(
   next_offset: number | null;
   total_employees: number;
 }> {
-  const res = await apiFetch("payroll/send-period-emails/", {
+  const { res, data } = await apiFetchJson<
+    {
+      emails_sent: PeriodProcessResult["emails_sent"];
+      email_errors: PeriodProcessResult["email_errors"];
+      done: boolean;
+      next_offset: number | null;
+      total_employees: number;
+      error?: string;
+    }
+  >("payroll/send-period-emails/", {
     method: "POST",
     json: true,
     body: JSON.stringify({ month, year, offset }),
   });
-
-  const data = await res.json();
   if (!res.ok) {
-    throw new Error(apiErrorMessage(res, data, "Email send failed"));
+    throw new Error(apiErrorFromResponse(res, data, "Email send failed"));
   }
-  return data as {
-    emails_sent: PeriodProcessResult["emails_sent"];
-    email_errors: PeriodProcessResult["email_errors"];
-    done: boolean;
-    next_offset: number | null;
-    total_employees: number;
-  };
+  return data;
 }
 
 export async function processPeriod(
@@ -231,15 +225,16 @@ export async function processAndSendFromRows(
 }
 
 export async function importPayrollRows(rows: PayrollRow[]) {
-  const res = await apiFetch("payroll/import/", {
-    method: "POST",
-    json: true,
-    body: JSON.stringify({ rows }),
-  });
-
-  const data = await res.json();
-  if (!res.ok) throw new Error(apiErrorMessage(res, data, "Import failed"));
-  return data as { saved: number; errors: string[] };
+  const { res, data } = await apiFetchJson<{ saved: number; errors: string[]; error?: string }>(
+    "payroll/import/",
+    {
+      method: "POST",
+      json: true,
+      body: JSON.stringify({ rows }),
+    },
+  );
+  if (!res.ok) throw new Error(apiErrorFromResponse(res, data, "Import failed"));
+  return data;
 }
 
 export type StoredSlip = {

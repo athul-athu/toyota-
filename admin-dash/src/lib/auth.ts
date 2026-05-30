@@ -1,4 +1,5 @@
-import { apiUrl } from "./api";
+import { apiUrl, BACKEND_URL } from "./api";
+import { apiFetch, apiFetchJson, apiErrorFromResponse } from "./api-request";
 
 const ACCESS_TOKEN_KEY = "access_token";
 const REFRESH_TOKEN_KEY = "refresh_token";
@@ -41,7 +42,6 @@ export function saveSession(data: LoginResponse): void {
   }
 }
 
-/** Throws if there is no access token (call before protected API requests). */
 export function buildAuthHeaders(contentType?: string): Record<string, string> {
   const token = getAccessToken();
   if (!token) {
@@ -58,28 +58,29 @@ export function buildAuthHeaders(contentType?: string): Record<string, string> {
   return headers;
 }
 
-/** Refresh Supabase session before long payroll / email jobs. */
 export async function refreshSession(): Promise<boolean> {
   const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
   if (!refreshToken) return false;
 
-  const res = await fetch(apiUrl("auth/refresh/"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  });
+  const { res, data } = await apiFetchJson<LoginResponse & { error?: string }>(
+    "auth/refresh/",
+    {
+      method: "POST",
+      auth: false,
+      json: true,
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    },
+  );
 
   if (!res.ok) {
     clearAuth();
     return false;
   }
 
-  const data = (await res.json()) as LoginResponse;
-  saveSession(data);
+  saveSession(data as LoginResponse);
   return true;
 }
 
-/** Ensure access token exists; refresh if possible before multi-step API work. */
 export async function ensureSessionForApi(): Promise<void> {
   if (getAccessToken()) return;
   const ok = await refreshSession();
@@ -95,19 +96,22 @@ export async function signup(
   password: string,
   fullName?: string,
 ): Promise<SignupResponse> {
-  const res = await fetch(apiUrl("auth/signup/"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      email,
-      password,
-      full_name: fullName || undefined,
-    }),
-  });
+  const { res, data } = await apiFetchJson<SignupResponse & { error?: string }>(
+    "auth/signup/",
+    {
+      method: "POST",
+      auth: false,
+      json: true,
+      body: JSON.stringify({
+        email,
+        password,
+        full_name: fullName || undefined,
+      }),
+    },
+  );
 
-  const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error ?? "Sign up failed");
+    throw new Error(apiErrorFromResponse(res, data, "Sign up failed"));
   }
 
   if ("access_token" in data) {
@@ -121,28 +125,29 @@ export async function login(
   email: string,
   password: string,
 ): Promise<LoginResponse> {
-  const res = await fetch(apiUrl("auth/login/"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
+  const { res, data } = await apiFetchJson<LoginResponse & { error?: string }>(
+    "auth/login/",
+    {
+      method: "POST",
+      auth: false,
+      json: true,
+      body: JSON.stringify({ email, password }),
+    },
+  );
 
-  const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error ?? "Login failed");
+    throw new Error(apiErrorFromResponse(res, data, "Login failed"));
   }
 
-  saveSession(data);
-  return data;
+  saveSession(data as LoginResponse);
+  return data as LoginResponse;
 }
 
 export async function fetchMe(): Promise<AuthUser | null> {
   const token = getAccessToken();
   if (!token) return null;
 
-  const res = await fetch(apiUrl("auth/me/"), {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const res = await apiFetch("auth/me/", { method: "GET" });
 
   if (res.status === 401 || res.status === 403) {
     clearAuth();
@@ -161,13 +166,15 @@ export async function logout(): Promise<void> {
   const token = getAccessToken();
   if (token) {
     try {
-      await fetch(apiUrl("auth/logout/"), {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await apiFetch("auth/logout/", { method: "POST" });
     } catch {
       // ignore network errors on logout
     }
   }
   clearAuth();
+}
+
+/** For debugging in browser console: current API base */
+export function getApiBaseUrl(): string {
+  return BACKEND_URL;
 }

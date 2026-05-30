@@ -1,4 +1,4 @@
-import { apiUrl } from "./api";
+import { apiUrl, BACKEND_URL } from "./api";
 import {
   buildAuthHeaders,
   ensureSessionForApi,
@@ -6,14 +6,37 @@ import {
 } from "./auth";
 
 type ApiFetchOptions = RequestInit & {
-  /** Attach Bearer token (default true). */
   auth?: boolean;
-  /** Set Content-Type: application/json */
   json?: boolean;
 };
 
+async function parseJsonSafe(res: Response): Promise<Record<string, unknown>> {
+  try {
+    return (await res.json()) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+export function apiErrorFromResponse(
+  res: Response,
+  data: Record<string, unknown>,
+  fallback: string,
+): string {
+  if (res.status === 404) {
+    return (
+      `API not found (${res.url}). Set NEXT_PUBLIC_API_URL in admin-dash/.env.local ` +
+      `(current base: ${BACKEND_URL}) and redeploy Vercel.`
+    );
+  }
+  if (res.status === 401) {
+    return String(data.error ?? "Session expired. Please sign in again.");
+  }
+  return String(data.error ?? fallback);
+}
+
 /**
- * Fetch Django API with auth, one refresh+retry on 401, clearer errors on network/CORS failures.
+ * Fetch Django API with auth, refresh+retry on 401, clear errors on 404/CORS/network.
  */
 export async function apiFetch(
   path: string,
@@ -55,8 +78,17 @@ export async function apiFetch(
       throw err;
     }
     throw new Error(
-      "Could not reach the API (network or timeout). Sign in again, or retry with a smaller payroll file.",
+      `Cannot reach API at ${BACKEND_URL}. Check Render is running and CORS allows your Vercel URL.`,
       { cause: err },
     );
   }
+}
+
+export async function apiFetchJson<T extends Record<string, unknown>>(
+  path: string,
+  options: ApiFetchOptions = {},
+): Promise<{ res: Response; data: T }> {
+  const res = await apiFetch(path, options);
+  const data = (await parseJsonSafe(res)) as T;
+  return { res, data };
 }

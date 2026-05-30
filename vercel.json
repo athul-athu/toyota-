@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "cd admin-dash && npm install && npm run build",
+  "installCommand": "cd admin-dash && npm install",
+  "outputDirectory": "admin-dash/.next",
+  "framework": null
+}
