@@ -62,10 +62,20 @@ CORS_ALLOWED_ORIGINS = [
     if o.strip()
 ]
 
-# All Vercel deployments (production + preview URLs)
+# All Vercel deployments (production, preview, team subdomains)
 CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://.*\.vercel\.app$",
+    r"^https://[\w.-]+\.vercel\.app$",
+    r"^http://localhost(:\d+)?$",
+    r"^http://127\.0\.0\.1(:\d+)?$",
 ]
+
+_extra_cors = os.getenv("CORS_EXTRA_ORIGINS", "")
+if _extra_cors.strip():
+    CORS_ALLOWED_ORIGINS.extend(
+        o.strip() for o in _extra_cors.split(",") if o.strip()
+    )
+
+CORS_PREFLIGHT_MAX_AGE = 86400
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = ["DELETE", "GET", "OPTIONS", "PATCH", "POST", "PUT"]
@@ -96,6 +106,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'server.middleware.cors_fallback.EarlyCorsMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',

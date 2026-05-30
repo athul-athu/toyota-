@@ -62,26 +62,41 @@ export async function apiFetch(
     return fetch(apiUrl(path), { ...rest, headers });
   }
 
-  try {
-    let res = await run(true);
+  const maxAttempts = 2;
 
-    if (auth && res.status === 401) {
-      const refreshed = await refreshSession();
-      if (refreshed) {
-        res = await run(false);
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      let res = await run(true);
+
+      if (auth && res.status === 401) {
+        const refreshed = await refreshSession();
+        if (refreshed) {
+          res = await run(false);
+        }
       }
-    }
 
-    return res;
-  } catch (err) {
-    if (err instanceof Error && err.message.includes("not signed in")) {
-      throw err;
+      return res;
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("not signed in")) {
+        throw err;
+      }
+      const isNetwork =
+        err instanceof TypeError ||
+        (err instanceof Error && err.message === "Failed to fetch");
+      if (isNetwork && attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, 2000));
+        continue;
+      }
+      throw new Error(
+        `Cannot reach API at ${BACKEND_URL}. ` +
+          `If Render was sleeping, wait a moment and refresh. ` +
+          `Otherwise check CORS / NEXT_PUBLIC_API_URL on Vercel.`,
+        { cause: err },
+      );
     }
-    throw new Error(
-      `Cannot reach API at ${BACKEND_URL}. Check Render is running and CORS allows your Vercel URL.`,
-      { cause: err },
-    );
   }
+
+  throw new Error(`Cannot reach API at ${BACKEND_URL}.`);
 }
 
 export async function apiFetchJson<T extends Record<string, unknown>>(

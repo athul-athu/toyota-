@@ -244,8 +244,10 @@ def session_check(request):
 
 
 @csrf_exempt
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "OPTIONS"])
 def me(request):
+    if request.method == "OPTIONS":
+        return JsonResponse({})
     token = bearer_token(request)
     if not token:
         return JsonResponse({"error": "Authorization required"}, status=401)
