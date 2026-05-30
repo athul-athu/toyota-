@@ -6,10 +6,8 @@ Admin dashboard for payroll upload, salary slip PDF generation, Supabase storage
 
 ## Prerequisites (install once on your PC)
 
-| Software | Link |
-|----------|------|
-| Python 3.12+ | https://www.python.org/downloads/ (tick **Add to PATH**) |
-| Node.js 20+ | https://nodejs.org/ |
+Python 3.12+ | https://www.python.org/downloads/ (tick **Add to PATH**) |
+Node.js 20+ | https://nodejs.org/ |
 
 ---
 

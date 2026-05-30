@@ -15,6 +15,51 @@ from server.supabase_client import get_supabase_clients
 logger = logging.getLogger(__name__)
 
 
+def _supabase_auth_error_message(exc: Exception) -> tuple[str, int]:
+    """Map Supabase auth errors to user-facing text and HTTP status."""
+    code = str(getattr(exc, "code", "") or "")
+    message = str(getattr(exc, "message", "") or str(exc))
+    lower = message.lower()
+
+    if code == "over_email_send_rate_limit" or "rate limit" in lower:
+        return (
+            "Too many confirmation emails were sent. Wait 10–60 minutes and try again, "
+            "or disable “Confirm email” in Supabase (Authentication → Providers → Email) for testing.",
+            429,
+        )
+
+    if "redirect" in lower and ("invalid" in lower or "not allowed" in lower):
+        return (
+            "Signup redirect URL is not allowed. In Supabase → Authentication → URL Configuration, "
+            "add Site URL https://toyota-livid.vercel.app and Redirect URL https://toyota-livid.vercel.app/**",
+            400,
+        )
+
+    if "signups" in lower and ("disabled" in lower or "not allowed" in lower):
+        return (
+            "Email sign-up is disabled in Supabase. Enable it under Authentication → Providers → Email.",
+            400,
+        )
+
+    if "captcha" in lower:
+        return (
+            "Captcha is required for sign-up. Disable CAPTCHA in Supabase Auth settings for testing.",
+            400,
+        )
+
+    if (
+        "already" in lower
+        or "registered" in lower
+        or code in ("user_already_exists", "email_exists")
+    ):
+        return ("An account with this email already exists", 409)
+
+    if message:
+        return (message, 400)
+
+    return ("Could not create account. Try again later.", 400)
+
+
 def _json_body(request) -> dict:
     if not request.body:
         return {}
@@ -166,10 +211,9 @@ def signup(request):
             }
         )
     except Exception as exc:
-        message = str(exc).lower()
-        if "already" in message or "registered" in message:
-            return JsonResponse({"error": "An account with this email already exists"}, status=409)
-        return JsonResponse({"error": "Could not create account. Try again later."}, status=400)
+        logger.warning("Supabase sign_up failed for %s: %s", email, exc)
+        error_message, status = _supabase_auth_error_message(exc)
+        return JsonResponse({"error": error_message}, status=status)
 
     if not auth_res.user:
         return JsonResponse({"error": "Could not create account"}, status=400)
