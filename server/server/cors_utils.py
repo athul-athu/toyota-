@@ -1,26 +1,20 @@
 from __future__ import annotations
 
-import re
-
 from django.conf import settings
 from django.http import HttpResponse
 
 
 def is_origin_allowed(origin: str) -> bool:
-    if not origin:
-        return False
-    allowed = getattr(settings, "CORS_ALLOWED_ORIGINS", [])
-    if origin in allowed:
-        return True
-    for pattern in getattr(settings, "CORS_ALLOWED_ORIGIN_REGEXES", []):
-        if re.fullmatch(pattern, origin):
-            return True
-    return False
+    """All origins allowed (see CORS_ALLOW_ALL_ORIGINS in settings)."""
+    return True
 
 
 def apply_cors_headers(response: HttpResponse, origin: str) -> None:
-    response["Access-Control-Allow-Origin"] = origin
-    if getattr(settings, "CORS_ALLOW_CREDENTIALS", False):
+    if origin:
+        response["Access-Control-Allow-Origin"] = origin
+    elif getattr(settings, "CORS_ALLOW_ALL_ORIGINS", False):
+        response["Access-Control-Allow-Origin"] = "*"
+    if getattr(settings, "CORS_ALLOW_CREDENTIALS", False) and origin:
         response["Access-Control-Allow-Credentials"] = "true"
     methods = getattr(settings, "CORS_ALLOW_METHODS", None)
     if methods:
@@ -35,7 +29,7 @@ def apply_cors_headers(response: HttpResponse, origin: str) -> None:
         getattr(settings, "CORS_PREFLIGHT_MAX_AGE", 86400)
     )
     vary = response.get("Vary", "")
-    if "Origin" not in vary:
+    if origin and "Origin" not in vary:
         response["Vary"] = f"{vary}, Origin".strip(", ")
 
 

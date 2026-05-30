@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from server.cors_utils import apply_cors_headers, cors_preflight_response, is_origin_allowed
+from server.cors_utils import apply_cors_headers, cors_preflight_response
 
 
 class EarlyCorsMiddleware:
@@ -11,11 +11,7 @@ class EarlyCorsMiddleware:
 
     def __call__(self, request):
         origin = request.headers.get("Origin", "")
-        if (
-            request.method == "OPTIONS"
-            and request.path.startswith("/api/")
-            and is_origin_allowed(origin)
-        ):
+        if request.method == "OPTIONS" and request.path.startswith("/api/"):
             return cors_preflight_response(origin)
         return self.get_response(request)
 
@@ -32,7 +28,6 @@ class EnsureCorsHeadersMiddleware:
 
         if (
             request.path.startswith("/api/")
-            and is_origin_allowed(origin)
             and not response.get("Access-Control-Allow-Origin")
         ):
             apply_cors_headers(response, origin)

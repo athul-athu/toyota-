@@ -51,30 +51,8 @@ ALLOWED_HOSTS = [
     if h.strip()
 ]
 
-_default_cors = (
-    "https://toyota-livid.vercel.app,"
-    "http://localhost:3000,http://127.0.0.1:3000,"
-    "http://localhost:3001,http://127.0.0.1:3001"
-)
-CORS_ALLOWED_ORIGINS = [
-    o.strip()
-    for o in os.getenv("CORS_ALLOWED_ORIGINS", _default_cors).split(",")
-    if o.strip()
-]
-
-# All Vercel deployments (production, preview, team subdomains)
-CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://[\w.-]+\.vercel\.app$",
-    r"^http://localhost(:\d+)?$",
-    r"^http://127\.0\.0\.1(:\d+)?$",
-]
-
-_extra_cors = os.getenv("CORS_EXTRA_ORIGINS", "")
-if _extra_cors.strip():
-    CORS_ALLOWED_ORIGINS.extend(
-        o.strip() for o in _extra_cors.split(",") if o.strip()
-    )
-
+# Allow any browser origin (Vercel previews, localhost, etc.)
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_PREFLIGHT_MAX_AGE = 86400
 
 CORS_ALLOW_CREDENTIALS = True
