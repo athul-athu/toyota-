@@ -44,17 +44,39 @@ def _running_dev_server() -> bool:
 # Default True when using `runserver`; set DJANGO_DEBUG=false on Render/production.
 DEBUG = _env_bool("DJANGO_DEBUG", default=_running_dev_server())
 
-ALLOWED_HOSTS = ["toyota-assessment.onrender.com", "localhost", "127.0.0.1"]
+_default_hosts = "toyota-assessment.onrender.com,localhost,127.0.0.1"
+ALLOWED_HOSTS = [
+    h.strip()
+    for h in os.getenv("ALLOWED_HOSTS", _default_hosts).split(",")
+    if h.strip()
+]
 
+_default_cors = (
+    "https://toyota-livid.vercel.app,"
+    "http://localhost:3000,http://127.0.0.1:3000,"
+    "http://localhost:3001,http://127.0.0.1:3001"
+)
 CORS_ALLOWED_ORIGINS = [
-    "https://toyota-livid.vercel.app",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:3001",
-    "http://127.0.0.1:3001",
+    o.strip()
+    for o in os.getenv("CORS_ALLOWED_ORIGINS", _default_cors).split(",")
+    if o.strip()
+]
+
+# Vercel preview deployments (e.g. toyota-xxx.vercel.app)
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://[a-z0-9-]+\.vercel\.app$",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "authorization",
+    "content-type",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
 
 
 # Application definition

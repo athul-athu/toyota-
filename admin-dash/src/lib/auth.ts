@@ -95,8 +95,12 @@ export async function fetchMe(): Promise<AuthUser | null> {
     headers: { Authorization: `Bearer ${token}` },
   });
 
-  if (!res.ok) {
+  if (res.status === 401 || res.status === 403) {
     clearAuth();
+    return null;
+  }
+
+  if (!res.ok) {
     return null;
   }
 

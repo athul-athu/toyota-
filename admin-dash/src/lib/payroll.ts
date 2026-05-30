@@ -52,6 +52,17 @@ function authHeadersJson(): HeadersInit {
   return { ...authHeaders(), "Content-Type": "application/json" };
 }
 
+function apiErrorMessage(
+  res: Response,
+  data: { error?: string } | null,
+  fallback: string,
+): string {
+  if (res.status === 401) {
+    return "Session expired or not signed in. Please log in again.";
+  }
+  return data?.error ?? fallback;
+}
+
 export async function previewPayrollFile(file: File) {
   const form = new FormData();
   form.append("file", file);
@@ -63,7 +74,7 @@ export async function previewPayrollFile(file: File) {
   });
 
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? "Preview failed");
+  if (!res.ok) throw new Error(apiErrorMessage(res, data, "Preview failed"));
   return data as { rows: PayrollRow[]; errors: string[]; count: number };
 }
 
@@ -83,7 +94,7 @@ export async function processAndSendPayroll(
   });
 
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? "Processing failed");
+  if (!res.ok) throw new Error(apiErrorMessage(res, data, "Processing failed"));
   return data as ProcessAndSendResult;
 }
 
@@ -98,7 +109,7 @@ export async function processAndSendFromRows(
   });
 
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? "Processing failed");
+  if (!res.ok) throw new Error(apiErrorMessage(res, data, "Processing failed"));
   return data as ProcessAndSendResult;
 }
 
@@ -110,7 +121,7 @@ export async function importPayrollRows(rows: PayrollRow[]) {
   });
 
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? "Import failed");
+  if (!res.ok) throw new Error(apiErrorMessage(res, data, "Import failed"));
   return data as { saved: number; errors: string[] };
 }
 
