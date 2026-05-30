@@ -82,22 +82,84 @@ function uniquePeriods(rows: PayrollRow[]): { month: number; year: number }[] {
   );
 }
 
+/** Generate PDFs + upload for one period (no emails). */
+export async function processPeriodDocuments(
+  month: number,
+  year: number,
+): Promise<PeriodProcessResult> {
+  const res = await apiFetch("payroll/process-period/", {
+    method: "POST",
+    json: true,
+    body: JSON.stringify({ month, year }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(apiErrorMessage(res, data, "PDF generation failed"));
+  }
+  return data as PeriodProcessResult;
+}
+
+/** Send one batch of emails; repeat until `done` is true. */
+export async function sendPeriodEmailsBatch(
+  month: number,
+  year: number,
+  offset: number,
+): Promise<{
+  emails_sent: PeriodProcessResult["emails_sent"];
+  email_errors: PeriodProcessResult["email_errors"];
+  done: boolean;
+  next_offset: number | null;
+  total_employees: number;
+}> {
+  const res = await apiFetch("payroll/send-period-emails/", {
+    method: "POST",
+    json: true,
+    body: JSON.stringify({ month, year, offset }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(apiErrorMessage(res, data, "Email send failed"));
+  }
+  return data as {
+    emails_sent: PeriodProcessResult["emails_sent"];
+    email_errors: PeriodProcessResult["email_errors"];
+    done: boolean;
+    next_offset: number | null;
+    total_employees: number;
+  };
+}
+
 export async function processPeriod(
   month: number,
   year: number,
   sendEmails = true,
 ): Promise<PeriodProcessResult> {
-  const res = await apiFetch("payroll/process-period/", {
-    method: "POST",
-    json: true,
-    body: JSON.stringify({ month, year, send_emails: sendEmails }),
-  });
-
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(apiErrorMessage(res, data, "Period processing failed"));
+  const docResult = await processPeriodDocuments(month, year);
+  if (!sendEmails) {
+    return docResult;
   }
-  return data as PeriodProcessResult;
+
+  const emails_sent: PeriodProcessResult["emails_sent"] = [];
+  const email_errors: PeriodProcessResult["email_errors"] = [];
+  let offset = 0;
+  let done = false;
+
+  while (!done) {
+    await refreshSession();
+    const batch = await sendPeriodEmailsBatch(month, year, offset);
+    emails_sent.push(...(batch.emails_sent ?? []));
+    email_errors.push(...(batch.email_errors ?? []));
+    done = batch.done;
+    offset = batch.next_offset ?? offset + 3;
+  }
+
+  return {
+    ...docResult,
+    emails_sent,
+    email_errors,
+  };
 }
 
 /** Import + process each pay period separately (stays under Render request timeout). */

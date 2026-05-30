@@ -15,10 +15,12 @@ from payroll.models import Employee, SalaryRecord
 from payroll.parsers import parse_payroll_file
 from payroll.pdf_generator import generate_salary_slip_pdf
 from payroll.services import (
+    generate_and_upload_period,
     import_payroll_rows,
     process_period,
     run_full_pipeline,
     run_pipeline_from_file,
+    send_period_emails,
 )
 from payroll.supabase_storage import (
     list_slip_files,
@@ -219,7 +221,7 @@ def generate_pdfs(request):
 @require_auth
 @require_http_methods(["POST"])
 def process_period_api(request):
-    """Generate PDFs, upload, and email for one month/year (avoids long single request timeouts)."""
+    """Generate PDFs and upload to Supabase only (emails via send-period-emails/)."""
     try:
         body = json.loads(request.body or "{}")
     except json.JSONDecodeError:
@@ -230,13 +232,41 @@ def process_period_api(request):
     if month is None or year is None:
         return JsonResponse({"error": "month and year are required"}, status=400)
 
-    send_emails = body.get("send_emails", True)
-    result = process_period(int(month), int(year), send_emails=send_emails)
+    result = generate_and_upload_period(int(month), int(year))
     result["month"] = int(month)
     result["year"] = int(year)
-
     result["smtp_configured"] = smtp_configured()
+
     if result.get("error"):
+        return JsonResponse(result, status=400)
+    return JsonResponse(result)
+
+
+@csrf_exempt
+@require_auth
+@require_http_methods(["POST"])
+def send_period_emails_api(request):
+    """Send a small batch of salary slip emails (call until done=true)."""
+    try:
+        body = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    month = body.get("month")
+    year = body.get("year")
+    if month is None or year is None:
+        return JsonResponse({"error": "month and year are required"}, status=400)
+
+    offset = int(body.get("offset", 0))
+    limit = body.get("limit")
+    limit_int = int(limit) if limit is not None else None
+
+    result = send_period_emails(
+        int(month), int(year), offset=offset, limit=limit_int
+    )
+    result["smtp_configured"] = smtp_configured()
+
+    if result.get("error") and result.get("done"):
         return JsonResponse(result, status=400)
     return JsonResponse(result)
 

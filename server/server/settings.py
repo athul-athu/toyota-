@@ -197,5 +197,9 @@ EMAIL_HOST_USER = os.getenv("SMTP_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 EMAIL_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() in ("1", "true", "yes")
 EMAIL_USE_SSL = os.getenv("SMTP_USE_SSL", "false").lower() in ("1", "true", "yes")
+EMAIL_TIMEOUT = int(os.getenv("SMTP_TIMEOUT", "15"))
 DEFAULT_FROM_EMAIL = os.getenv("SMTP_FROM", EMAIL_HOST_USER or "payroll@toyota.local")
+
+# Max emails per HTTP request (keeps Render under ~30s)
+PAYROLL_EMAIL_BATCH_SIZE = int(os.getenv("PAYROLL_EMAIL_BATCH_SIZE", "3"))
 

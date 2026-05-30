@@ -26,4 +26,9 @@ urlpatterns = [
         payroll_views.process_period_api,
         name="payroll-process-period",
     ),
+    path(
+        "payroll/send-period-emails/",
+        payroll_views.send_period_emails_api,
+        name="payroll-send-period-emails",
+    ),
 ]
