@@ -6,6 +6,8 @@ const API_BACKEND_URL =
   "https://toyota-assessment.onrender.com";
 
 const nextConfig: NextConfig = {
+  // Avoid 308 strip of trailing slash on /api/* — Django APPEND_SLASH adds it back (redirect loop).
+  skipTrailingSlashRedirect: true,
   async rewrites() {
     return [
       {

@@ -106,6 +106,9 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'server.urls'
 
+# JSON API only — do not 301 /path → /path/ (breaks Vercel /api proxy with skipTrailingSlashRedirect).
+APPEND_SLASH = False
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
