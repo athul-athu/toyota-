@@ -21,8 +21,8 @@ export function isPayrollEmailApiPath(path: string): boolean {
 
 export function smtpErrorMessage(detail?: string): string {
   const base =
-    "Email failed (SMTP). Add SMTP_HOST, SMTP_USER, SMTP_PASSWORD, and SMTP_FROM " +
-    "in Render → your service → Environment (not only local .env). " +
-    "Gmail needs an App Password on port 587.";
+    "Email failed. Render blocks Gmail SMTP (port 587). " +
+    "On Render, set RESEND_API_KEY + RESEND_FROM (free at resend.com). " +
+    "For local dev only, use SMTP_* in .env.";
   return detail ? `${base}\n\n${detail}` : base;
 }

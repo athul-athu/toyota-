@@ -178,7 +178,11 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")
 SUPABASE_SALARY_BUCKET = os.getenv("SUPABASE_SALARY_BUCKET", "salary-slips")
 
-# SMTP (Gmail, SendGrid, Mailgun, etc.)
+# Email: Resend HTTP API (works on Render — SMTP port 587 is often blocked) OR SMTP (local dev)
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+RESEND_FROM = os.getenv("RESEND_FROM", "")
+
+# SMTP (Gmail, SendGrid, etc.) — fine locally; often blocked on Render
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = os.getenv("SMTP_HOST", "")
 EMAIL_PORT = int(os.getenv("SMTP_PORT", "587"))

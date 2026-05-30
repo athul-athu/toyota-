@@ -76,7 +76,25 @@ SMTP_FROM=Toyota Payroll <your-email@gmail.com>
 5. Run SQL: open **SQL Editor**, paste and run the script from **`server/supabase/schema.sql`**
 6. Confirm bucket **Storage** → `salary-slips` exists (created by SQL)
 
-### 3.2 Gmail App Password (SMTP)
+### 3.2 Email on Render (Resend — required for production)
+
+**Render blocks outbound SMTP** (Gmail port 587). Use [Resend](https://resend.com) over HTTPS instead:
+
+1. Sign up at https://resend.com (free tier)
+2. **API Keys** → create key → copy to Render as `RESEND_API_KEY`
+3. **From** address:
+   - Testing: `RESEND_FROM=Toyota Payroll <onboarding@resend.dev>` (can only send to your Resend account email until you verify a domain)
+   - Production: verify your domain in Resend, then e.g. `Toyota Payroll <payroll@yourdomain.com>`
+4. In **Render** → your web service → **Environment**, add:
+
+```env
+RESEND_API_KEY=re_xxxxxxxx
+RESEND_FROM=Toyota Payroll <onboarding@resend.dev>
+```
+
+Redeploy Render. Leave Gmail `SMTP_*` for **local** dev only.
+
+### 3.3 Gmail App Password (SMTP — local dev)
 
 Gmail does **not** allow your normal password for apps.
 
@@ -94,7 +112,7 @@ SMTP_PASSWORD=abcdefghijklmnop
 SMTP_FROM=Toyota Payroll <you@gmail.com>
 ```
 
-### 3.3 Admin dashboard env
+### 3.4 Admin dashboard env
 
 The repo includes **`admin-dash/.env.local`** with `NEXT_PUBLIC_API_URL` (backend host only, no `/api`).
 
@@ -172,8 +190,9 @@ Copy the same file to `server/payroll/assets/toyota-logo.png` for PDFs (or resta
 | Problem | Fix |
 |---------|-----|
 | Login 401 | Create user via Sign up; check Supabase Auth is enabled |
-| SMTP / email fails | Verify App Password in root `.env`; restart Django |
-| `SMTP not configured` | Fill all `SMTP_*` in **root** `.env`, not `server/.env` |
+| SMTP / email fails on Render | Use `RESEND_API_KEY` + `RESEND_FROM` on Render (SMTP 587 is blocked) |
+| SMTP works locally only | Gmail App Password in root `.env` for local; Resend on Render |
+| `SMTP not configured` / email error | Set `RESEND_*` on Render or `SMTP_*` locally |
 | Supabase upload error | Run `server/supabase/schema.sql` in SQL Editor |
 | Port in use | Stop other apps on 3000 / 8000 or change ports |
 | `python` not found | Reinstall Python with “Add to PATH” |

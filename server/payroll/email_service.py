@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import base64
+import json
 import logging
 import socket
+import urllib.error
+import urllib.request
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
@@ -25,6 +29,10 @@ MONTH_NAMES = [
 ]
 
 
+def resend_configured() -> bool:
+    return bool(getattr(settings, "RESEND_API_KEY", ""))
+
+
 def smtp_configured() -> bool:
     return bool(
         settings.EMAIL_HOST
@@ -34,16 +42,32 @@ def smtp_configured() -> bool:
     )
 
 
+def email_configured() -> bool:
+    """True if Resend (Render) or SMTP (local) can send mail."""
+    if resend_configured():
+        from_addr = getattr(settings, "RESEND_FROM", "") or settings.DEFAULT_FROM_EMAIL
+        return bool(from_addr)
+    return smtp_configured()
+
+
+def email_provider() -> str:
+    if resend_configured():
+        return "resend"
+    if smtp_configured():
+        return "smtp"
+    return "none"
+
+
 def format_smtp_error(exc: BaseException) -> str:
-    """Turn low-level socket/SMTP errors into actionable messages for the admin UI."""
+    """Actionable email errors for the admin UI."""
     text = str(exc).strip() or exc.__class__.__name__
     lower = text.lower()
 
-    if not smtp_configured():
+    if not email_configured():
         return (
-            "SMTP is not configured on the server. "
-            "Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD, and SMTP_FROM in Render "
-            "environment variables (not only your local .env)."
+            "Email is not configured on the server. For Render, set RESEND_API_KEY and "
+            "RESEND_FROM (HTTPS — works when SMTP port 587 is blocked). For local dev, "
+            "use SMTP_* in .env instead."
         )
 
     if (
@@ -52,34 +76,33 @@ def format_smtp_error(exc: BaseException) -> str:
         or "no route to host" in lower
         or "errno 113" in lower
         or "name or service not known" in lower
-        or "errno -2" in lower
         or "getaddrinfo failed" in lower
     ):
         return (
             f"Cannot reach SMTP server ({settings.EMAIL_HOST}:{settings.EMAIL_PORT}). "
-            "Check SMTP_HOST/SMTP_PORT on Render. Many hosts block outbound port 587; "
-            "try SendGrid/Mailgun or your provider's SMTP relay."
+            "Render blocks outbound SMTP on port 587. Use Resend instead: set "
+            "RESEND_API_KEY + RESEND_FROM on Render (see SETUP.md)."
         )
 
     if "timed out" in lower or "timeout" in lower:
         return (
             f"SMTP connection timed out ({settings.EMAIL_HOST}). "
-            "Check SMTP_* on Render, firewall rules, and SMTP_TIMEOUT."
+            "On Render, use RESEND_API_KEY instead of Gmail SMTP."
         )
 
     if "authentication failed" in lower or "535" in lower or "534" in lower:
         return (
-            "SMTP login failed. Use an app password for Gmail and verify "
-            "SMTP_USER / SMTP_PASSWORD on Render."
+            "SMTP login failed. For Gmail use an App Password locally, or use "
+            "RESEND_API_KEY on Render."
         )
 
     if "connection refused" in lower or "errno 111" in lower:
         return (
             f"SMTP server refused connection ({settings.EMAIL_HOST}:{settings.EMAIL_PORT}). "
-            "Check SMTP_PORT and SMTP_USE_TLS / SMTP_USE_SSL."
+            "On Render, switch to RESEND_API_KEY (HTTPS email API)."
         )
 
-    return f"SMTP error: {text}"
+    return f"Email error: {text}"
 
 
 def period_label(month: int, year: int) -> str:
@@ -144,7 +167,63 @@ def build_email_plain(employee_name: str, month: int, year: int) -> str:
     )
 
 
-def send_salary_slip_email(
+def _send_via_resend(
+    to_email: str,
+    employee_name: str,
+    month: int,
+    year: int,
+    pdf_bytes: bytes,
+    attachment_filename: str,
+) -> None:
+    api_key = settings.RESEND_API_KEY
+    from_email = getattr(settings, "RESEND_FROM", "") or settings.DEFAULT_FROM_EMAIL
+    if not api_key or not from_email:
+        raise RuntimeError(format_smtp_error(RuntimeError("Resend not configured")))
+
+    period = period_label(month, year)
+    subject = f"Your Salary Slip – {period} | Toyota"
+    plain = build_email_plain(employee_name, month, year)
+    html = build_email_html(employee_name, month, year)
+
+    payload = {
+        "from": from_email,
+        "to": [to_email],
+        "subject": subject,
+        "html": html,
+        "text": plain,
+        "attachments": [
+            {
+                "filename": attachment_filename,
+                "content": base64.b64encode(pdf_bytes).decode("ascii"),
+            }
+        ],
+    }
+
+    req = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            if resp.status not in (200, 201):
+                body = resp.read().decode("utf-8", errors="replace")
+                raise RuntimeError(f"Resend API HTTP {resp.status}: {body}")
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Resend API error: {body}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(format_smtp_error(exc)) from exc
+
+    logger.info("Resend: salary slip sent to %s (%s)", to_email, employee_name)
+
+
+def _send_via_smtp(
     to_email: str,
     employee_name: str,
     month: int,
@@ -153,7 +232,7 @@ def send_salary_slip_email(
     attachment_filename: str,
 ) -> None:
     if not smtp_configured():
-        raise RuntimeError(format_smtp_error(RuntimeError("not configured")))
+        raise RuntimeError(format_smtp_error(RuntimeError("SMTP not configured")))
 
     period = period_label(month, year)
     subject = f"Your Salary Slip – {period} | Toyota"
@@ -178,4 +257,24 @@ def send_salary_slip_email(
     except Exception as exc:
         raise RuntimeError(format_smtp_error(exc)) from exc
 
-    logger.info("Salary slip email sent to %s (%s)", to_email, employee_name)
+    logger.info("SMTP: salary slip sent to %s (%s)", to_email, employee_name)
+
+
+def send_salary_slip_email(
+    to_email: str,
+    employee_name: str,
+    month: int,
+    year: int,
+    pdf_bytes: bytes,
+    attachment_filename: str,
+) -> None:
+    if not email_configured():
+        raise RuntimeError(format_smtp_error(RuntimeError("not configured")))
+
+    if resend_configured():
+        _send_via_resend(
+            to_email, employee_name, month, year, pdf_bytes, attachment_filename
+        )
+        return
+
+    _send_via_smtp(to_email, employee_name, month, year, pdf_bytes, attachment_filename)

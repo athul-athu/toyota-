@@ -70,8 +70,8 @@ export function UploadPortal() {
       }
       if (!result.smtp_configured) {
         setError(
-          "SMTP is not configured on Render. PDFs were saved but emails were not sent. " +
-            "Add SMTP_HOST, SMTP_USER, SMTP_PASSWORD, SMTP_FROM in Render → Environment.",
+          "Email not configured on Render. PDFs were saved. " +
+            "Add RESEND_API_KEY and RESEND_FROM in Render → Environment (SMTP port 587 is blocked).",
         );
       }
       const emailFails = result.period_results?.flatMap(

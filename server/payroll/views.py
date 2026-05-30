@@ -10,7 +10,7 @@ from django.http import FileResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from payroll.email_service import smtp_configured
+from payroll.email_service import email_configured, email_provider
 from payroll.models import Employee, SalaryRecord
 from payroll.parsers import parse_payroll_file
 from payroll.pdf_generator import generate_salary_slip_pdf
@@ -236,7 +236,8 @@ def process_period_api(request):
         result = generate_and_upload_period(int(month), int(year))
         result["month"] = int(month)
         result["year"] = int(year)
-        result["smtp_configured"] = smtp_configured()
+        result["smtp_configured"] = email_configured()
+        result["email_provider"] = email_provider()
 
         if result.get("error"):
             return JsonResponse(result, status=400)
@@ -272,7 +273,8 @@ def send_period_emails_api(request):
         result = send_period_emails(
             int(month), int(year), offset=offset, limit=limit_int
         )
-        result["smtp_configured"] = smtp_configured()
+        result["smtp_configured"] = email_configured()
+        result["email_provider"] = email_provider()
 
         if result.get("error") and result.get("done"):
             return JsonResponse(result, status=400)
@@ -340,5 +342,6 @@ def process_and_send(request):
     if result.get("error") and not result.get("period_results"):
         return JsonResponse(result, status=400)
 
-    result["smtp_configured"] = smtp_configured()
+    result["smtp_configured"] = email_configured()
+    result["email_provider"] = email_provider()
     return JsonResponse(result)

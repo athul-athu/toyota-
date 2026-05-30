@@ -3,7 +3,11 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
-from payroll.email_service import format_smtp_error, send_salary_slip_email, smtp_configured
+from payroll.email_service import (
+    email_configured,
+    format_smtp_error,
+    send_salary_slip_email,
+)
 from payroll.models import Employee, SalaryRecord
 from payroll.parsers import parse_payroll_file
 from payroll.pdf_generator import generate_salary_slip_pdf
@@ -145,7 +149,7 @@ def send_period_emails(
     """Send salary slip emails in small batches (avoids worker timeout)."""
     from django.conf import settings
 
-    if not smtp_configured():
+    if not email_configured():
         return {
             "error": format_smtp_error(RuntimeError("not configured")),
             "month": month,
