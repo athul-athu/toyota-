@@ -20,9 +20,13 @@ export function normalizeBackendUrl(url: string): string {
 export function resolveUpstreamUrl(): string {
   const fromEnv = process.env.NEXT_PUBLIC_API_URL?.trim();
   if (fromEnv) return normalizeBackendUrl(fromEnv);
+  // Always use Render in production builds (Vercel / `next build`)
   if (process.env.NODE_ENV === "production") return RENDER_API;
   return "http://localhost:8000";
 }
+
+/** True when the client should call Render directly (default). */
+export const API_USES_DIRECT_URL = process.env.NEXT_PUBLIC_API_PROXY !== "true";
 
 /** Base URL for browser fetch(). */
 export function resolveBackendUrl(): string {
