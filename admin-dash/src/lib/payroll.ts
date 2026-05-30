@@ -152,7 +152,7 @@ export async function processPeriod(
     emails_sent.push(...(batch.emails_sent ?? []));
     email_errors.push(...(batch.email_errors ?? []));
     done = batch.done;
-    offset = batch.next_offset ?? offset + 3;
+    offset = batch.next_offset ?? offset + 1;
   }
 
   return {

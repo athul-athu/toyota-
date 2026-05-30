@@ -96,8 +96,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
     'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -201,5 +201,5 @@ EMAIL_TIMEOUT = int(os.getenv("SMTP_TIMEOUT", "15"))
 DEFAULT_FROM_EMAIL = os.getenv("SMTP_FROM", EMAIL_HOST_USER or "payroll@toyota.local")
 
 # Max emails per HTTP request (keeps Render under ~30s)
-PAYROLL_EMAIL_BATCH_SIZE = int(os.getenv("PAYROLL_EMAIL_BATCH_SIZE", "3"))
+PAYROLL_EMAIL_BATCH_SIZE = int(os.getenv("PAYROLL_EMAIL_BATCH_SIZE", "1"))
 
