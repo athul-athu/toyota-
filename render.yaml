@@ -15,5 +15,6 @@ services:
         value: ${DATABASE_URL}
       # Add in Render dashboard (Dashboard → Environment):
       # SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_JWT_SECRET
+      # FRONTEND_URL=https://toyota-livid.vercel.app (email confirmation redirect)
       # RESEND_API_KEY, RESEND_FROM (email on Render — SMTP port 587 is blocked)
       # Or SMTP_* for local-only testing

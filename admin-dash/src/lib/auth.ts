@@ -42,6 +42,38 @@ export function saveSession(data: LoginResponse): void {
   }
 }
 
+/** After Supabase email confirmation, tokens arrive in the URL hash on /login. */
+export function saveSessionFromAuthHash(): boolean {
+  if (typeof window === "undefined") return false;
+
+  const raw = window.location.hash.startsWith("#")
+    ? window.location.hash.slice(1)
+    : "";
+  if (!raw) return false;
+
+  const params = new URLSearchParams(raw);
+  const accessToken = params.get("access_token");
+  if (!accessToken) return false;
+
+  localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+  const refreshToken = params.get("refresh_token");
+  if (refreshToken) {
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+  }
+
+  window.history.replaceState(
+    null,
+    "",
+    window.location.pathname + window.location.search,
+  );
+  return true;
+}
+
+function emailConfirmRedirectUrl(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  return `${window.location.origin}/login`;
+}
+
 export function buildAuthHeaders(contentType?: string): Record<string, string> {
   const token = getAccessToken();
   if (!token) {
@@ -106,6 +138,7 @@ export async function signup(
         email,
         password,
         full_name: fullName || undefined,
+        redirect_to: emailConfirmRedirectUrl(),
       }),
     },
   );

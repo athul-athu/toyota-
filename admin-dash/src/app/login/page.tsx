@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
 import { ToyotaLogo } from "@/components/toyota-logo";
-import { fetchMe, login, signup } from "@/lib/auth";
+import { fetchMe, login, saveSessionFromAuthHash, signup } from "@/lib/auth";
 
 type Mode = "login" | "signup";
 
@@ -55,6 +55,12 @@ export default function LoginPage() {
   }
 
   useEffect(() => {
+    if (saveSessionFromAuthHash()) {
+      fetchMe().then((user) => {
+        if (user) router.replace("/");
+      });
+      return;
+    }
     fetchMe().then((user) => {
       if (user) router.replace("/");
     });

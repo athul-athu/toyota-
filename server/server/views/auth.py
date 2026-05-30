@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import logging
+from urllib.parse import urlparse
 
+from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -109,6 +111,29 @@ def _validate_credentials(email: str, password: str) -> str | None:
     return None
 
 
+def _email_redirect_url(requested: str | None) -> str:
+    """Pick a safe redirect URL for Supabase confirmation emails."""
+    default = settings.SUPABASE_EMAIL_REDIRECT_URL
+    candidate = (requested or "").strip()
+    if not candidate:
+        return default
+
+    parsed = urlparse(candidate)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return default
+
+    origin = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+    allowed = set(settings.AUTH_REDIRECT_ORIGINS)
+    allowed.add(settings.FRONTEND_URL.rstrip("/"))
+    if origin not in allowed:
+        return default
+
+    path = parsed.path or "/login"
+    if not path.startswith("/"):
+        path = f"/{path}"
+    return f"{origin}{path}"
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def signup(request):
@@ -126,13 +151,18 @@ def signup(request):
         return JsonResponse({"error": validation_error}, status=400)
 
     clients = get_supabase_clients()
+    redirect_to = _email_redirect_url(body.get("redirect_to"))
+
+    signup_options: dict = {"email_redirect_to": redirect_to}
+    if full_name:
+        signup_options["data"] = {"full_name": full_name}
 
     try:
         auth_res = clients.public.auth.sign_up(
             {
                 "email": email,
                 "password": password,
-                "options": {"data": {"full_name": full_name}} if full_name else {},
+                "options": signup_options,
             }
         )
     except Exception as exc:

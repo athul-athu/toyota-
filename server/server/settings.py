@@ -178,6 +178,21 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")
 SUPABASE_SALARY_BUCKET = os.getenv("SUPABASE_SALARY_BUCKET", "salary-slips")
 
+# Where Supabase sends users after email confirmation (must match Supabase → Auth → URL config)
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://toyota-livid.vercel.app").rstrip("/")
+SUPABASE_EMAIL_REDIRECT_URL = os.getenv(
+    "SUPABASE_EMAIL_REDIRECT_URL",
+    f"{FRONTEND_URL}/login",
+)
+AUTH_REDIRECT_ORIGINS = [
+    o.strip().rstrip("/")
+    for o in os.getenv(
+        "AUTH_REDIRECT_ORIGINS",
+        "https://toyota-livid.vercel.app,http://localhost:3000",
+    ).split(",")
+    if o.strip()
+]
+
 # Email: Resend HTTP API (works on Render — SMTP port 587 is often blocked) OR SMTP (local dev)
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 RESEND_FROM = os.getenv("RESEND_FROM", "")
