@@ -167,6 +167,31 @@ def build_email_plain(employee_name: str, month: int, year: int) -> str:
     )
 
 
+def _parse_resend_error_body(body: str, status: int) -> str:
+    """Human-readable Resend API errors for the admin UI."""
+    if "1010" in body or "user-agent" in body.lower():
+        return (
+            "Resend blocked the request (error 1010). This is fixed in the latest "
+            "deploy — redeploy Render from main. If it persists, contact support."
+        )
+    try:
+        data = json.loads(body)
+        msg = data.get("message") or data.get("error") or ""
+        if isinstance(msg, dict):
+            msg = msg.get("message", str(msg))
+        if msg:
+            if "domain" in str(msg).lower() or "from" in str(msg).lower():
+                return (
+                    f"Resend rejected the sender ({status}): {msg}. "
+                    "Use RESEND_FROM=Toyota Payroll <onboarding@resend.dev> for testing, "
+                    "or verify your domain at resend.com/domains."
+                )
+            return f"Resend error ({status}): {msg}"
+    except json.JSONDecodeError:
+        pass
+    return f"Resend API error ({status}): {body[:500]}"
+
+
 def _send_via_resend(
     to_email: str,
     employee_name: str,
@@ -205,6 +230,8 @@ def _send_via_resend(
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
+            # Required by Resend — requests without User-Agent get 403 / error 1010
+            "User-Agent": "Toyota-Payroll/1.0 (Django; +https://github.com/athul-athu/toyota-)",
         },
         method="POST",
     )
@@ -213,10 +240,10 @@ def _send_via_resend(
         with urllib.request.urlopen(req, timeout=30) as resp:
             if resp.status not in (200, 201):
                 body = resp.read().decode("utf-8", errors="replace")
-                raise RuntimeError(f"Resend API HTTP {resp.status}: {body}")
+                raise RuntimeError(_parse_resend_error_body(body, resp.status))
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Resend API error: {body}") from exc
+        raise RuntimeError(_parse_resend_error_body(body, exc.code)) from exc
     except urllib.error.URLError as exc:
         raise RuntimeError(format_smtp_error(exc)) from exc
 
