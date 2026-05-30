@@ -1,4 +1,4 @@
-import { apiUrl, BACKEND_URL } from "./api";
+import { UPSTREAM_URL } from "./api";
 import { apiFetch, apiFetchJson, apiErrorFromResponse } from "./api-request";
 
 const ACCESS_TOKEN_KEY = "access_token";
@@ -176,5 +176,5 @@ export async function logout(): Promise<void> {
 
 /** For debugging in browser console: current API base */
 export function getApiBaseUrl(): string {
-  return BACKEND_URL;
+  return UPSTREAM_URL;
 }

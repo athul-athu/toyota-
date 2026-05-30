@@ -1,4 +1,4 @@
-import { apiUrl, BACKEND_URL } from "./api";
+import { apiUrl, BACKEND_URL, UPSTREAM_URL } from "./api";
 import {
   buildAuthHeaders,
   ensureSessionForApi,
@@ -26,7 +26,7 @@ export function apiErrorFromResponse(
   if (res.status === 404) {
     return (
       `API not found (${res.url}). Set NEXT_PUBLIC_API_URL in admin-dash/.env.local ` +
-      `(current base: ${BACKEND_URL}) and redeploy Vercel.`
+      `(upstream: ${UPSTREAM_URL}, mode: ${BACKEND_URL ? "direct" : "proxy"}) and redeploy Vercel.`
     );
   }
   if (res.status === 401) {
@@ -88,15 +88,15 @@ export async function apiFetch(
         continue;
       }
       throw new Error(
-        `Cannot reach API at ${BACKEND_URL}. ` +
-          `If Render was sleeping, wait a moment and refresh. ` +
-          `Otherwise check CORS / NEXT_PUBLIC_API_URL on Vercel.`,
+        `Cannot reach API (upstream ${UPSTREAM_URL}). ` +
+          `If Render was sleeping, wait ~30s and refresh. ` +
+          `Check https://toyota-assessment.onrender.com/api/health/ in your browser.`,
         { cause: err },
       );
     }
   }
 
-  throw new Error(`Cannot reach API at ${BACKEND_URL}.`);
+  throw new Error(`Cannot reach API (upstream ${UPSTREAM_URL}).`);
 }
 
 export async function apiFetchJson<T extends Record<string, unknown>>(
