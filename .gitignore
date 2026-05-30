@@ -1,8 +1,6 @@
 # ─── Secrets (never commit) ───
 .env
-.env.local
 .env.*.local
-!admin-dash/.env.local
 server/.env
 *.pem
 *.key

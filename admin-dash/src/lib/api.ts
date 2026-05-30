@@ -1,15 +1,12 @@
 /**
  * API URLs for the Django backend.
  *
- * Production (Vercel): browser calls same-origin `/api/...` → Next.js rewrites
- * proxy to Render (see next.config.ts). No CORS issues.
- *
- * Local dev: set in admin-dash/.env.local (optional if using rewrites):
- *   NEXT_PUBLIC_API_URL=http://localhost:8000
- *
- * To call Render directly from the browser (not recommended on Vercel):
- *   NEXT_PUBLIC_API_DIRECT=true
+ * Default: call Render directly (CORS_ALLOW_ALL_ORIGINS on Django).
+ * Set in admin-dash/.env.local or Vercel env at build time:
  *   NEXT_PUBLIC_API_URL=https://toyota-assessment.onrender.com
+ *
+ * Optional same-origin proxy (if /api rewrites work on your Vercel project):
+ *   NEXT_PUBLIC_API_PROXY=true
  */
 
 export const API_PATH_PREFIX = "/api";
@@ -20,7 +17,6 @@ export function normalizeBackendUrl(url: string): string {
   return url.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
 }
 
-/** Upstream Django origin (for error messages and direct mode). */
 export function resolveUpstreamUrl(): string {
   const fromEnv = process.env.NEXT_PUBLIC_API_URL?.trim();
   if (fromEnv) return normalizeBackendUrl(fromEnv);
@@ -28,22 +24,18 @@ export function resolveUpstreamUrl(): string {
   return "http://localhost:8000";
 }
 
-/**
- * Base URL for fetch(). Empty string = same-origin `/api/*` (Vercel rewrite proxy).
- */
+/** Base URL for browser fetch(). */
 export function resolveBackendUrl(): string {
-  const direct = process.env.NEXT_PUBLIC_API_DIRECT === "true";
-  if (direct) {
-    return resolveUpstreamUrl();
+  if (process.env.NEXT_PUBLIC_API_PROXY === "true") {
+    return "";
   }
-  // Default: relative /api paths (works on Vercel + local `next dev` via rewrites)
-  return "";
+  return resolveUpstreamUrl();
 }
 
 export const UPSTREAM_URL = resolveUpstreamUrl();
 export const BACKEND_URL = resolveBackendUrl();
 
-/** @deprecated Use BACKEND_URL / UPSTREAM_URL */
+/** @deprecated Use UPSTREAM_URL */
 export const API_BASE_URL = UPSTREAM_URL;
 
 export function apiUrl(path: string): string {

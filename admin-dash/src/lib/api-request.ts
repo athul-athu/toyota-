@@ -26,7 +26,7 @@ export function apiErrorFromResponse(
   if (res.status === 404) {
     return (
       `API not found (${res.url}). Set NEXT_PUBLIC_API_URL in admin-dash/.env.local ` +
-      `(upstream: ${UPSTREAM_URL}, mode: ${BACKEND_URL ? "direct" : "proxy"}) and redeploy Vercel.`
+      `(API base: ${BACKEND_URL || UPSTREAM_URL}). Redeploy Vercel after env changes.`
     );
   }
   if (res.status === 401) {
