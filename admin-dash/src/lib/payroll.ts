@@ -1,5 +1,9 @@
 import { apiUrl } from "./api";
-import { getAccessToken } from "./auth";
+import {
+  buildAuthHeaders,
+  ensureSessionForApi,
+  refreshSession,
+} from "./auth";
 
 export type PayrollRow = {
   employee_id: string;
@@ -44,15 +48,6 @@ export type PeriodProcessResult = {
   error?: string;
 };
 
-function authHeaders(): HeadersInit {
-  const token = getAccessToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-function authHeadersJson(): HeadersInit {
-  return { ...authHeaders(), "Content-Type": "application/json" };
-}
-
 function apiErrorMessage(
   res: Response,
   data: { error?: string } | null,
@@ -68,9 +63,10 @@ export async function previewPayrollFile(file: File) {
   const form = new FormData();
   form.append("file", file);
 
+  await ensureSessionForApi();
   const res = await fetch(apiUrl("payroll/preview/"), {
     method: "POST",
-    headers: authHeaders(),
+    headers: buildAuthHeaders(),
     body: form,
   });
 
@@ -99,7 +95,7 @@ export async function processPeriod(
 ): Promise<PeriodProcessResult> {
   const res = await fetch(apiUrl("payroll/process-period/"), {
     method: "POST",
-    headers: authHeadersJson(),
+    headers: buildAuthHeaders("application/json"),
     body: JSON.stringify({ month, year, send_emails: sendEmails }),
   });
 
@@ -116,11 +112,15 @@ export async function processPayrollInSteps(
   sendEmails = true,
   parseErrors: string[] = [],
 ): Promise<ProcessAndSendResult> {
+  await ensureSessionForApi();
+  await refreshSession();
+
   const importResult = await importPayrollRows(rows);
   const periods = uniquePeriods(rows);
   const period_results: PeriodProcessResult[] = [];
 
   for (const { month, year } of periods) {
+    await refreshSession();
     period_results.push(await processPeriod(month, year, sendEmails));
   }
 
@@ -177,7 +177,7 @@ export async function processAndSendFromRows(
 export async function importPayrollRows(rows: PayrollRow[]) {
   const res = await fetch(apiUrl("payroll/import/"), {
     method: "POST",
-    headers: authHeadersJson(),
+    headers: buildAuthHeaders("application/json"),
     body: JSON.stringify({ rows }),
   });
 
@@ -205,7 +205,7 @@ export async function fetchSalaries(month?: number, year?: number) {
 
   const res = await fetch(
     `${apiUrl("payroll/salaries/")}?${params.toString()}`,
-    { headers: authHeaders() },
+    { headers: buildAuthHeaders() },
   );
 
   const data = await res.json();
@@ -216,7 +216,7 @@ export async function fetchSalaries(month?: number, year?: number) {
 export async function generateAndStoreSlips(month: number, year: number) {
   const res = await fetch(apiUrl("payroll/generate-pdfs/"), {
     method: "POST",
-    headers: authHeadersJson(),
+    headers: buildAuthHeaders("application/json"),
     body: JSON.stringify({ month, year }),
   });
 
@@ -230,7 +230,7 @@ export async function downloadSalaryPdfsZip(month: number, year: number) {
     `${apiUrl("payroll/generate-pdfs/")}?download=zip`,
     {
       method: "POST",
-      headers: authHeadersJson(),
+      headers: buildAuthHeaders("application/json"),
       body: JSON.stringify({ month, year, download_zip: true }),
     },
   );

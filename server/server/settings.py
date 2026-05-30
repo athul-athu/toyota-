@@ -78,6 +78,7 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
     "x-requested-with",
 ]
+CORS_EXPOSE_HEADERS = ["content-type", "content-disposition", "x-uploaded-count"]
 
 
 # Application definition

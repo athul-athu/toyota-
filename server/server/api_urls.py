@@ -7,6 +7,7 @@ urlpatterns = [
     path("auth/signup/", auth.signup, name="api-auth-signup"),
     path("auth/login/", auth.login, name="api-auth-login"),
     path("auth/me/", auth.me, name="api-auth-me"),
+    path("auth/refresh/", auth.refresh, name="api-auth-refresh"),
     path("auth/logout/", auth.logout, name="api-auth-logout"),
     path("payroll/preview/", payroll_views.preview_upload, name="payroll-preview"),
     path("payroll/import/", payroll_views.import_payroll, name="payroll-import"),

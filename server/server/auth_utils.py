@@ -11,7 +11,11 @@ logger = logging.getLogger(__name__)
 
 
 def bearer_token(request) -> str | None:
-    auth = request.headers.get("Authorization", "")
+    auth = (
+        request.headers.get("Authorization")
+        or request.META.get("HTTP_AUTHORIZATION")
+        or ""
+    )
     if auth.startswith("Bearer "):
         return auth[7:].strip()
     return None

@@ -7,6 +7,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from server.auth_utils import bearer_token
 from server.supabase_client import get_supabase_clients
 
 logger = logging.getLogger(__name__)
@@ -16,13 +17,6 @@ def _json_body(request) -> dict:
     if not request.body:
         return {}
     return json.loads(request.body)
-
-
-def _bearer_token(request) -> str | None:
-    auth = request.headers.get("Authorization", "")
-    if auth.startswith("Bearer "):
-        return auth[7:].strip()
-    return None
 
 
 def _default_profile(user_id: str, email: str, full_name: str | None = None) -> dict:
@@ -221,7 +215,7 @@ def login(request):
 @csrf_exempt
 @require_http_methods(["GET"])
 def me(request):
-    token = _bearer_token(request)
+    token = bearer_token(request)
     if not token:
         return JsonResponse({"error": "Authorization required"}, status=401)
 
@@ -245,8 +239,47 @@ def me(request):
 
 @csrf_exempt
 @require_http_methods(["POST"])
+def refresh(request):
+    try:
+        body = _json_body(request)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON body"}, status=400)
+
+    refresh_token = (body.get("refresh_token") or "").strip()
+    if not refresh_token:
+        return JsonResponse({"error": "refresh_token is required"}, status=400)
+
+    clients = get_supabase_clients()
+    try:
+        auth_res = clients.public.auth.refresh_session(refresh_token)
+    except Exception as exc:
+        logger.warning("Token refresh failed: %s", exc)
+        return JsonResponse(
+            {"error": "Session expired. Please sign in again."},
+            status=401,
+        )
+
+    if not auth_res.session or not auth_res.user:
+        return JsonResponse(
+            {"error": "Session expired. Please sign in again."},
+            status=401,
+        )
+
+    profile = _ensure_profile(
+        clients.service, auth_res.user.id, auth_res.user.email or ""
+    )
+    return JsonResponse(
+        _session_payload(
+            auth_res.session,
+            _user_payload(auth_res.user, profile),
+        )
+    )
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
 def logout(request):
-    token = _bearer_token(request)
+    token = bearer_token(request)
     if token:
         clients = get_supabase_clients()
         try:

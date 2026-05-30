@@ -41,6 +41,55 @@ export function saveSession(data: LoginResponse): void {
   }
 }
 
+/** Throws if there is no access token (call before protected API requests). */
+export function buildAuthHeaders(contentType?: string): Record<string, string> {
+  const token = getAccessToken();
+  if (!token) {
+    throw new Error(
+      "You are not signed in. Open the login page and sign in again.",
+    );
+  }
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+  };
+  if (contentType) {
+    headers["Content-Type"] = contentType;
+  }
+  return headers;
+}
+
+/** Refresh Supabase session before long payroll / email jobs. */
+export async function refreshSession(): Promise<boolean> {
+  const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+  if (!refreshToken) return false;
+
+  const res = await fetch(apiUrl("auth/refresh/"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+
+  if (!res.ok) {
+    clearAuth();
+    return false;
+  }
+
+  const data = (await res.json()) as LoginResponse;
+  saveSession(data);
+  return true;
+}
+
+/** Ensure access token exists; refresh if possible before multi-step API work. */
+export async function ensureSessionForApi(): Promise<void> {
+  if (getAccessToken()) return;
+  const ok = await refreshSession();
+  if (!ok) {
+    throw new Error(
+      "Session expired. Please sign in again before sending emails.",
+    );
+  }
+}
+
 export async function signup(
   email: string,
   password: string,
