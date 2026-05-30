@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 import os
+import sys
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -28,8 +29,20 @@ load_dotenv(ROOT_DIR / ".env")
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-i6_tje4&6w^t@o8(7(wm8iy5eh)+p0+g4(hg0-1@=r@eq3ym$h'
 
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.lower() in ("true", "1", "yes")
+
+
+def _running_dev_server() -> bool:
+    return len(sys.argv) > 1 and sys.argv[1] == "runserver"
+
+
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() in ("true", "1", "yes")
+# Default True when using `runserver`; set DJANGO_DEBUG=false on Render/production.
+DEBUG = _env_bool("DJANGO_DEBUG", default=_running_dev_server())
 
 ALLOWED_HOSTS = ["toyota-assessment.onrender.com", "localhost", "127.0.0.1"]
 
@@ -37,6 +50,8 @@ CORS_ALLOWED_ORIGINS = [
     "https://toyota-livid.vercel.app",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
 ]
 
 CORS_ALLOW_CREDENTIALS = True

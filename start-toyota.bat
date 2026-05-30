@@ -22,13 +22,13 @@ if not exist ".env" (
 )
 
 echo Starting Django API on http://localhost:8000 ...
-start "Toyota - Django API" cmd /k "cd /d "%~dp0server" && .venv\Scripts\python.exe manage.py runserver 8000"
+start "Toyota - Django API" cmd /k "cd /d ""%~dp0server"" && .venv\Scripts\python.exe manage.py runserver 8000"
 
 echo Waiting for API to start...
 timeout /t 4 /nobreak >nul
 
 echo Starting Admin Dashboard on http://localhost:3000 ...
-start "Toyota - Admin Dashboard" cmd /k "cd /d "%~dp0admin-dash" && npm run dev"
+start "Toyota - Admin Dashboard" cmd /k "cd /d ""%~dp0admin-dash"" && npm run dev"
 
 timeout /t 6 /nobreak >nul
 echo Opening browser...
