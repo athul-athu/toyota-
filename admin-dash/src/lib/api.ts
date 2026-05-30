@@ -1,7 +1,12 @@
 /**
- * API routing:
- * - On Vercel (*.vercel.app): same-origin /api/* → proxied to Render (no CORS in browser)
- * - Local dev: NEXT_PUBLIC_API_URL from .env.local (e.g. http://localhost:8000)
+ * API base URL — set in admin-dash/.env.local:
+ *
+ *   NEXT_PUBLIC_API_URL=https://toyota-assessment.onrender.com
+ *
+ * (host only, no /api suffix)
+ *
+ * Full URLs are built as: {BASE}/api/{path}
+ * e.g. apiUrl("auth/login/") → https://toyota-assessment.onrender.com/api/auth/login/
  */
 
 export const API_PATH_PREFIX = "/api";
@@ -10,16 +15,10 @@ export function normalizeBackendUrl(url: string): string {
   return url.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
 }
 
+/** Django backend origin from NEXT_PUBLIC_API_URL (inlined at `npm run build`). */
 export function resolveBackendUrl(): string {
-  if (typeof window !== "undefined") {
-    if (window.location.hostname.endsWith(".vercel.app")) {
-      return "";
-    }
-  }
-
   const fromEnv = process.env.NEXT_PUBLIC_API_URL?.trim();
   if (fromEnv) return normalizeBackendUrl(fromEnv);
-
   return "http://localhost:8000";
 }
 
@@ -37,5 +36,5 @@ export function apiUrl(path: string): string {
   if (!route.startsWith(`${API_PATH_PREFIX}/`)) {
     route = `${API_PATH_PREFIX}${route}`;
   }
-  return base ? `${base}${route}` : route;
+  return `${base}${route}`;
 }
