@@ -75,6 +75,16 @@ function uniquePeriods(rows: PayrollRow[]): { month: number; year: number }[] {
   );
 }
 
+function employeeIdsForPeriod(
+  rows: PayrollRow[],
+  month: number,
+  year: number,
+): string[] {
+  return rows
+    .filter((row) => row.month === month && row.year === year)
+    .map((row) => row.employee_id);
+}
+
 /** Generate PDFs + upload for one period (no emails). */
 export async function processPeriodDocuments(
   month: number,
@@ -99,6 +109,7 @@ export async function sendPeriodEmailsBatch(
   month: number,
   year: number,
   offset: number,
+  employeeIds?: string[],
 ): Promise<{
   emails_sent: PeriodProcessResult["emails_sent"];
   email_errors: PeriodProcessResult["email_errors"];
@@ -118,7 +129,7 @@ export async function sendPeriodEmailsBatch(
   >("payroll/send-period-emails/", {
     method: "POST",
     json: true,
-    body: JSON.stringify({ month, year, offset }),
+    body: JSON.stringify({ month, year, offset, employee_ids: employeeIds }),
   });
   if (!res.ok) {
     throw new Error(apiErrorFromResponse(res, data, "Email send failed"));
@@ -135,6 +146,7 @@ export async function processPeriod(
   month: number,
   year: number,
   sendEmails = true,
+  employeeIds?: string[],
 ): Promise<PeriodProcessResult> {
   const docResult = await processPeriodDocuments(month, year);
   if (!sendEmails) {
@@ -148,7 +160,12 @@ export async function processPeriod(
 
   while (!done) {
     await refreshSession();
-    const batch = await sendPeriodEmailsBatch(month, year, offset);
+    const batch = await sendPeriodEmailsBatch(
+      month,
+      year,
+      offset,
+      employeeIds,
+    );
     emails_sent.push(...(batch.emails_sent ?? []));
     email_errors.push(...(batch.email_errors ?? []));
     if (batch.email_errors?.length && !batch.emails_sent?.length) {
@@ -183,7 +200,14 @@ export async function processPayrollInSteps(
 
   for (const { month, year } of periods) {
     await refreshSession();
-    period_results.push(await processPeriod(month, year, sendEmails));
+    period_results.push(
+      await processPeriod(
+        month,
+        year,
+        sendEmails,
+        employeeIdsForPeriod(rows, month, year),
+      ),
+    );
   }
 
   const total_emails_sent = period_results.reduce(

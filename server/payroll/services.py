@@ -87,6 +87,24 @@ def _salaries_for_period(month: int, year: int) -> list[SalaryRecord]:
     return [make_in_memory_salary_record(r) for r in records]
 
 
+def _employee_ids_for_period(rows: list[dict], month: int, year: int) -> list[str]:
+    return [
+        str(r["employee_id"])
+        for r in rows
+        if int(r["month"]) == month and int(r["year"]) == year
+    ]
+
+
+def _filter_salaries_by_employee_ids(
+    salaries: list[SalaryRecord],
+    employee_ids: list[str] | None,
+) -> list[SalaryRecord]:
+    if employee_ids is None:
+        return salaries
+    allowed = set(employee_ids)
+    return [s for s in salaries if s.employee.employee_id in allowed]
+
+
 def generate_and_upload_period(month: int, year: int) -> dict:
     """Generate PDFs and upload to Supabase (no email — fast, fits Render timeout)."""
     try:
@@ -145,8 +163,12 @@ def send_period_emails(
     *,
     offset: int = 0,
     limit: int | None = None,
+    employee_ids: list[str] | None = None,
 ) -> dict:
-    """Send salary slip emails in small batches (avoids worker timeout)."""
+    """Send salary slip emails in small batches (avoids worker timeout).
+
+    When ``employee_ids`` is set, only those employees receive mail (e.g. current upload).
+    """
     from django.conf import settings
 
     if not email_configured():
@@ -160,7 +182,10 @@ def send_period_emails(
 
     batch_size = limit or getattr(settings, "PAYROLL_EMAIL_BATCH_SIZE", 3)
     try:
-        salaries = _salaries_for_period(month, year)
+        salaries = _filter_salaries_by_employee_ids(
+            _salaries_for_period(month, year),
+            employee_ids,
+        )
     except Exception as exc:
         return {
             "error": f"Could not load salary records: {exc}",
@@ -171,6 +196,18 @@ def send_period_emails(
 
     total = len(salaries)
     if total == 0:
+        if employee_ids is not None:
+            return {
+                "month": month,
+                "year": year,
+                "emails_sent": [],
+                "email_errors": [],
+                "offset": 0,
+                "next_offset": None,
+                "total_employees": 0,
+                "done": True,
+                "smtp_configured": True,
+            }
         return {
             "error": f"No salary records for {month}/{year}",
             "month": month,
@@ -247,6 +284,7 @@ def process_period(
     year: int,
     *,
     send_emails: bool = True,
+    employee_ids: list[str] | None = None,
 ) -> dict:
     """Full period: PDFs + optional batched emails (used by one-shot pipeline)."""
     doc_result = generate_and_upload_period(month, year)
@@ -264,7 +302,11 @@ def process_period(
     batch_size = getattr(settings, "PAYROLL_EMAIL_BATCH_SIZE", 3)
     while True:
         batch_result = send_period_emails(
-            month, year, offset=offset, limit=batch_size
+            month,
+            year,
+            offset=offset,
+            limit=batch_size,
+            employee_ids=employee_ids,
         )
         if batch_result.get("error") and not emails_sent:
             doc_result["error"] = batch_result["error"]
@@ -294,8 +336,14 @@ def run_full_pipeline(
 
     period_results: list[dict] = []
     for month, year in periods:
+        period_employee_ids = _employee_ids_for_period(rows, month, year)
         period_results.append(
-            process_period(month, year, send_emails=send_emails)
+            process_period(
+                month,
+                year,
+                send_emails=send_emails,
+                employee_ids=period_employee_ids,
+            )
         )
 
     total_emails = sum(len(p.get("emails_sent", [])) for p in period_results)

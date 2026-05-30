@@ -268,10 +268,17 @@ def send_period_emails_api(request):
     offset = int(body.get("offset", 0))
     limit = body.get("limit")
     limit_int = int(limit) if limit is not None else None
+    employee_ids = body.get("employee_ids")
+    if employee_ids is not None and not isinstance(employee_ids, list):
+        return JsonResponse({"error": "employee_ids must be a list"}, status=400)
 
     try:
         result = send_period_emails(
-            int(month), int(year), offset=offset, limit=limit_int
+            int(month),
+            int(year),
+            offset=offset,
+            limit=limit_int,
+            employee_ids=employee_ids,
         )
         result["smtp_configured"] = email_configured()
         result["email_provider"] = email_provider()
